@@ -177,6 +177,7 @@ def _gpu_rows(host: Host, torch_info: TorchInfo | None) -> list[Row]:
 def _network_rows(host: Host) -> list[Row]:
     rows: list[Row] = []
     skews: list[float] = []
+    skew_hosts: list[str] = []
     for name in HOSTS:
         dns = host.dns(name)
         if dns is None:
@@ -199,10 +200,14 @@ def _network_rows(host: Host) -> list[Row]:
         dates = [p.server_date for p in good if p.server_date is not None]
         if dates:
             skews.append((host.now() - dates[0]).total_seconds())
+            skew_hosts.append(name)
     if skews:
-        worst = max(skews, key=abs)
-        status = "warn" if abs(worst) > CLOCK_WARN_SECONDS else "ok"
-        rows.append(Row(status, "clock", f"{worst:+.1f} s versus HTTPS Date headers"))
+        # A cached CDN response carries an old Date, which inflates one host's skew. A wrong local
+        # clock shows on every host, so judge by the host that agrees best.
+        best = min(skews, key=abs)
+        status = "warn" if abs(best) > CLOCK_WARN_SECONDS else "ok"
+        per_host = ", ".join(f"{h} {s:+.1f} s" for h, s in zip(skew_hosts, skews, strict=True))
+        rows.append(Row(status, "clock", f"{best:+.1f} s (smallest of: {per_host})"))
     else:
         rows.append(Row("info", "clock", "not checked: no server Date header received"))
     return rows

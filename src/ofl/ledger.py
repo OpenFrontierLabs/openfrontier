@@ -14,7 +14,10 @@ SCHEMA_RELPATH = Path("ledger") / "schema.json"
 
 
 def load_schema(root: Path) -> dict[str, Any]:
-    schema = json.loads((root / SCHEMA_RELPATH).read_text(encoding="utf-8"))
+    try:
+        schema = json.loads((root / SCHEMA_RELPATH).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"ledger/schema.json is not valid JSON: {exc}") from exc
     if not isinstance(schema, dict):
         raise ValueError("ledger/schema.json must be a JSON object")
     return schema

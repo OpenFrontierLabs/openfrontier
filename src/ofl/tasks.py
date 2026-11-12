@@ -110,14 +110,17 @@ def _smoke_module(module: str, *args: str, stream: bool) -> tuple[int, float]:
     argv = python_module(module, *args)
     start = time.perf_counter()
     if stream:
-        rc = run(argv, cwd=root)
+        rc = run(argv, cwd=root)  # interactive: runs until it finishes
         return rc, time.perf_counter() - start
     log = root / ".cache" / "smoke" / f"{module.rsplit('.', 1)[-1]}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w", encoding="utf-8") as fh:
-        rc = subprocess.run(
-            argv, cwd=root, stdout=fh, stderr=subprocess.STDOUT, check=False
-        ).returncode
+        try:
+            rc = subprocess.run(
+                argv, cwd=root, stdout=fh, stderr=subprocess.STDOUT, check=False, timeout=1800
+            ).returncode
+        except subprocess.TimeoutExpired:
+            rc = 124
     elapsed = time.perf_counter() - start
     lines = log.read_text(encoding="utf-8").splitlines()
     result = next((ln for ln in reversed(lines) if ln.startswith("OFL_SMOKE_RESULT")), "")

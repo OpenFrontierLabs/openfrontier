@@ -34,15 +34,21 @@ def run(
     argv: Sequence[str],
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
+    timeout: float | None = None,
 ) -> int:
-    """Run a command with inherited stdio and return its exit code."""
+    """Run a command with inherited stdio and return its exit code.
+
+    `timeout` is None only for training launches, which run until they finish.
+    """
     print("+ " + " ".join(argv), flush=True)
     try:
         return subprocess.run(
-            list(argv), cwd=cwd, env=None if env is None else dict(env)
+            list(argv), cwd=cwd, env=None if env is None else dict(env), timeout=timeout
         ).returncode
     except FileNotFoundError as exc:
         raise OflError(f"command not found: {argv[0]}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise OflError(f"{argv[0]} timed out after {timeout} s") from exc
 
 
 def python_module(module: str, *args: str) -> list[str]:

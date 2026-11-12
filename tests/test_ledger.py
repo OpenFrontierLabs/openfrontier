@@ -15,9 +15,11 @@ def schema(root: Path) -> dict[str, Any]:
 
 @pytest.fixture
 def example(root: Path) -> dict[str, Any]:
-    loaded: dict[str, Any] = json.loads(
-        (root / "ledger" / "example.EXAMPLE.json").read_text(encoding="utf-8")
-    )
+    path = root / "ledger" / "example.EXAMPLE.json"
+    try:
+        loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"{path} is not valid JSON: {exc}")
     return loaded
 
 

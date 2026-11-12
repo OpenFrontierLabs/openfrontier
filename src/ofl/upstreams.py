@@ -57,9 +57,13 @@ def checkout_path(root: Path, name: str) -> Path:
 
 def _git(args: list[str], cwd: Path) -> str:
     try:
-        res = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
+        res = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, check=False, timeout=900
+        )
     except FileNotFoundError as exc:
         raise OflError("git not found on PATH") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise OflError(f"git {' '.join(args)} timed out after 900 s") from exc
     if res.returncode != 0:
         raise OflError(f"git {' '.join(args)} failed in {cwd}: {res.stderr.strip()}")
     return res.stdout.strip()

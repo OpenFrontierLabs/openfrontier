@@ -194,7 +194,10 @@ def run(cfg: SmokeDiloco) -> dict[str, Any]:
             nprocs=cfg.workers,
             join=True,
         )
-        loaded: dict[str, Any] = json.loads(Path(result_file).read_text(encoding="utf-8"))
+        try:
+            loaded: dict[str, Any] = json.loads(Path(result_file).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise OflError(f"worker 0 produced no readable result: {exc}") from exc
         return loaded
 
 

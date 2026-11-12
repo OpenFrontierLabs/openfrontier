@@ -116,9 +116,17 @@ def test_latency_is_the_median_of_samples_and_bandwidth_is_not_claimed() -> None
     assert "bandwidth not measured" in row.detail
 
 
-def test_clock_skew_warns() -> None:
+def test_clock_skew_on_every_host_warns() -> None:
     skewed = fake_host(https=lambda _h: HttpsProbe(True, 0.1, NOW - timedelta(minutes=5)))
     clock = by_name(collect(skewed, Path(".")))["clock"]
     assert clock.status == "warn"
     assert "+300.0 s" in clock.detail
+
+
+def test_one_stale_cached_date_does_not_trigger_a_clock_warning() -> None:
+    stale = {"huggingface.co": NOW - timedelta(minutes=5), "github.com": NOW}
+    host = fake_host(https=lambda h: HttpsProbe(True, 0.1, stale[h]))
+    clock = by_name(collect(host, Path(".")))["clock"]
+    assert clock.status == "ok"
+    assert "+0.0 s" in clock.detail
     assert by_name(collect(fake_host(), Path(".")))["clock"].status == "ok"

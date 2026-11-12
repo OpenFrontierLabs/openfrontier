@@ -142,15 +142,22 @@ def verify(root: Path) -> int:
             dry_run=True,
         )
         # --dry-run only prints the merged config, so the distributed launcher is not needed.
-        res = subprocess.run(
-            [sys.executable, *plan.script_args], capture_output=True, text=True, check=False
-        )
-        status = "ok  " if res.returncode == 0 else "FAIL"
+        try:
+            res = subprocess.run(
+                [sys.executable, *plan.script_args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise OflError(f"upstream --dry-run for {config.name} timed out after 600 s") from exc
+        ok = res.returncode == 0
         print(
-            f"{status} {config.name}: upstream accepted {len(plan.script_args) - 2} arguments "
-            "(--dry-run)"
+            f"{'ok  ' if ok else 'FAIL'} {config.name}: upstream accepted "
+            f"{len(plan.script_args) - 2} arguments (--dry-run)"
         )
-        if res.returncode != 0:
+        if not ok:
             failures += 1
             print(res.stderr[-2000:])
     return 1 if failures else 0
