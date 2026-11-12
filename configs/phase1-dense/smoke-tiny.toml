@@ -21,7 +21,7 @@ corpus_seed = 0
 
 [train]
 steps = 60
-dev_steps = 600
+dev_steps = 300
 batch_sequences = 16
 lr = 0.003
 warmup_steps = 5

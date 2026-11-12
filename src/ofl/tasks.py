@@ -153,7 +153,10 @@ def dev() -> int:
     root = find_root()
     steps = configs.load_smoke_tiny(root).dev_steps
     workdir = root / ".cache" / "dev"
-    workdir.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(
+        workdir, ignore_errors=True
+    )  # a fresh run: the trainer resumes from old checkpoints
+    workdir.mkdir(parents=True)
     rc, _ = _smoke_module(
         "ofl.smoke.olmo_tiny", "--steps", str(steps), "--workdir", str(workdir), stream=True
     )
