@@ -43,6 +43,7 @@ def _help(_args: argparse.Namespace) -> int:
     print("  diloco launch       phase 3: not built")
     print("  swarm coordinator   swarm PoC: node registry + DiLoCo outer steps over HTTP")
     print("  swarm status        swarm PoC: registry and run progress")
+    print("  swarm report        swarm PoC: send a finished run to the website")
     print("  node join           swarm PoC: train as a node of a coordinator's run")
     return 0
 

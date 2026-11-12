@@ -34,7 +34,23 @@ def _sysctl(key: str) -> str:
     return out.stdout.strip()
 
 
-def describe(device: str) -> dict[str, Any]:
+def detect_github() -> str | None:
+    """The signed-in `gh` login, if gh is installed and authenticated."""
+    try:
+        out = subprocess.run(
+            ["gh", "api", "user", "--jq", ".login"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    login = out.stdout.strip()
+    return login if out.returncode == 0 and login else None
+
+
+def describe(device: str, github: str | None = None) -> dict[str, Any]:
     """What this node is: the registry entry it sends."""
     if device == "cuda":
         props = torch.cuda.get_device_properties(0)
@@ -43,7 +59,7 @@ def describe(device: str) -> dict[str, Any]:
         gpu, mem = _sysctl("machdep.cpu.brand_string"), int(_sysctl("hw.memsize") or 0)
     else:
         gpu, mem = platform.processor() or platform.machine(), 0
-    return {
+    info = {
         "hostname": socket.gethostname().split(".")[0],
         "device": device,
         "gpu_name": gpu,
@@ -51,6 +67,7 @@ def describe(device: str) -> dict[str, Any]:
         "torch": torch.__version__,
         "platform": platform.platform(),
     }
+    return {**info, "github": github} if github else info
 
 
 class Client:
@@ -91,13 +108,17 @@ def _pull(client: Client, model: m.CharGPT) -> tuple[int, str]:
     return int(headers["X-Round"]), m.weights_hash(m.get_flat(model))
 
 
-def join(coordinator: str, device: str | None = None) -> int:
+def join(coordinator: str, device: str | None = None, github: str | None = None) -> int:
     client = Client(coordinator)
     dev = pick_device(device)
-    info = describe(dev)
+    info = describe(dev, github)
     cfg = client.post_json("/v1/nodes", info)
     node_id, rank = cfg["node_id"], cfg["rank"]
-    print(f"joined run {cfg['run_id']} as {node_id} rank {rank} on {info['gpu_name']}", flush=True)
+    who = f" for @{github}" if github else ""
+    print(
+        f"joined run {cfg['run_id']} as {node_id}{who} rank {rank} on {info['gpu_name']}",
+        flush=True,
+    )
     stop = threading.Event()
     threading.Thread(target=_heartbeat, args=(client, node_id, stop), daemon=True).start()
     try:
