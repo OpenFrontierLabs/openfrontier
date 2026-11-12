@@ -1,0 +1,46 @@
+# Code owners are requested for review on PRs that touch their paths.
+# The first merged contributor in a layer becomes its maintainer and is added
+# to that layer's section (GOVERNANCE.md, "Layer maintainers"). Until then the
+# founding steward owns everything. Later rules win over earlier ones.
+
+*                                   @bradlishman
+
+# Project governance and process
+/GOVERNANCE.md                      @bradlishman
+/CONTRIBUTING.md                    @bradlishman
+/MANIFESTO.md                       @bradlishman
+/rfcs/                              @bradlishman
+/.github/                           @bradlishman
+
+# Layer 1: contributor hardware (ofl doctor)
+/src/ofl/doctor.py                  @bradlishman
+/tests/test_doctor.py               @bradlishman
+
+# Layer 2: Open Frontier Node (no code yet; see docs/join-a-node.md)
+/docs/join-a-node.md                @bradlishman
+
+# Layer 3: Rust P2P network (no code yet)
+
+# Layer 4: training engine
+/src/ofl/run0.py                    @bradlishman
+/src/ofl/moe.py                     @bradlishman
+/src/ofl/phases.py                  @bradlishman
+/src/ofl/smoke/                     @bradlishman
+/configs/                           @bradlishman
+/docs/run0.md                       @bradlishman
+/docs/phase1-moe.md                 @bradlishman
+/docs/phase2-post.md                @bradlishman
+/docs/phase3-diloco.md              @bradlishman
+
+# Layer 5: storage and evidence
+/manifests/                         @bradlishman
+/ledger/                            @bradlishman
+/src/ofl/ledger.py                  @bradlishman
+/CREDITS.md                         @bradlishman
+
+# Layer 6: member and operator console (lives in OpenFrontierLabs/website)
+
+# Layer 7: hosting and relays
+/src/ofl/deploy.py                  @bradlishman
+
+# Layer 8: open outputs and evals (no code yet)

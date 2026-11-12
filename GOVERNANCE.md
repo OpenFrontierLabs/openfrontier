@@ -17,6 +17,39 @@ Open Frontier Labs is not yet a legal entity. The intended path is a **nonprofit
 - **Maintainers decide, in the open.** The people with commit rights on a repo decide what merges there. If you disagree, say so on the thread with your reasons. Where maintainers disagree and cannot settle it, the steward breaks the tie and writes the reason down.
 - There are no committees and no approval boards.
 
+## Rights follow merged work
+
+- **Triage** (label, assign, close duplicates) after your first merged PR in a repository.
+- **Write** (merge) after a handful of merged PRs in a layer, granted by that layer's maintainer or the steward.
+- Rights lapse after a year with no activity and come back on request.
+
+## Layer maintainers
+
+The project is organised in the eight layers of [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Each layer has a maintainer who reviews its PRs and decides what merges there.
+
+| Layer | Home | Maintainer |
+| --- | --- | --- |
+| 1. Contributor hardware | `openfrontier` (`ofl doctor`) | steward, until filled |
+| 2. Open Frontier Node | planned `openfrontier-node` repo | steward, until filled |
+| 3. Rust P2P network | planned `openfrontier-node` repo | steward, until filled |
+| 4. Training engine | `openfrontier` | steward, until filled |
+| 5. Storage and evidence | `openfrontier` (manifests, ledger) | steward, until filled |
+| 6. Member and operator console | `website` | steward, until filled |
+| 7. Hosting and relays | `website` and runbooks | steward, until filled |
+| 8. Open outputs and evals | `openfrontier` and the Hugging Face org | steward, until filled |
+
+The first contributor with merged work in a layer who wants the role becomes its maintainer, and is added to [CODEOWNERS](.github/CODEOWNERS) in the same PR that updates this table. There is no application process. A layer may have more than one maintainer.
+
+## RFCs
+
+Decisions that are hard to reverse (protocol messages, the ledger schema, licences, layer boundaries, the milestone ladder) go through an [RFC](rfcs/README.md): a markdown file in `rfcs/` opened as a pull request. It merges when the maintainers of the affected layers agree and nobody has an unresolved objection; the steward breaks ties and writes down why. Everything else is a normal pull request.
+
+## Steering group
+
+When **three layers each have an active maintainer**, a steering group forms: the steward plus one maintainer per active layer. It handles only cross-layer decisions, the brand, money and ties. Everything else stays with layer maintainers. This is a trigger, not a gate: the group forms when the people exist, and its members are listed here when it does.
+
+When the foundation is formed, it holds the assets and the steering group becomes its technical council. No token and no equity at any stage.
+
 ## Money and compute
 
 - Funding is meant to come from many donors and from donated compute, never from a single owner.
