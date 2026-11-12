@@ -56,6 +56,10 @@ Each round every node pulls the global weights (checked by SHA-256), runs 50 inn
 
 `uv run ofl swarm status` prints the registry (device, GPU, memory, torch, last heartbeat) and the per-round loss and hash agreement. A run directory `~/.ofl/swarm/runs/<run-id>/` holds `log.jsonl`, `receipt.json` (nodes, rounds, losses, wall time, final weights hash, every node's final hash, git SHA), `sample.txt` and `weights.f32`. The HTTP interface is described in [`src/ofl/swarm/openapi.yaml`](../src/ofl/swarm/openapi.yaml). `tests/test_swarm.py` runs the same protocol with two CPU nodes on localhost.
 
+### Show the swarm on the website
+
+`ofl swarm coordinator --report-url https://openfrontier-labs.com` reports nodes, the run and each round to the site, which draws them on [/dashboard](https://openfrontier-labs.com/dashboard) and, matched by GitHub handle, in the member console. The token is read from `OFL_SWARM_TOKEN` or `~/.ofl/token`. Reports go through a background queue: an unreachable site is printed and dropped, and never stalls training. `ofl node join --github <handle>` attaches a node to a member (default: your `gh` login). `ofl swarm report --run-dir ~/.ofl/swarm/runs/<run-id> --github <handle> --report-url …` sends a finished run from its receipt and log.
+
 ## Planned, not built
 
 The plan describes this flow. **None of these commands exist.**
