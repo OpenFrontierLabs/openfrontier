@@ -67,11 +67,20 @@ pub fn format_override(value: &toml::Value) -> String {
     match value {
         toml::Value::Boolean(b) => if *b { "true" } else { "false" }.to_owned(),
         toml::Value::Array(items) => {
-            let parts: Vec<String> = items.iter().map(format_override).collect();
+            // The upstream parses list overrides as JSON, so strings stay quoted.
+            let parts: Vec<String> = items.iter().map(json_element).collect();
             format!("[{}]", parts.join(","))
         }
         toml::Value::String(s) => s.clone(),
         other => other.to_string(),
+    }
+}
+
+/// One array element rendered as JSON (strings quoted, numbers and bools bare).
+fn json_element(value: &toml::Value) -> String {
+    match value {
+        toml::Value::String(s) => serde_json::Value::String(s.clone()).to_string(),
+        other => format_override(other),
     }
 }
 

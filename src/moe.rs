@@ -251,7 +251,7 @@ fn flag_known(flag: &str, texts: &[String]) -> bool {
         [field.clone(), field.strip_prefix("no_").map(str::to_owned).unwrap_or(field)]
             .into_iter()
             .collect();
-    let pattern = format!(r"^\s+(?:{})\s*:", candidates.join("|"));
+    let pattern = format!(r"(?m)^\s+(?:{})\s*:", candidates.join("|"));
     let Ok(re) = Regex::new(&pattern) else {
         return false;
     };

@@ -212,13 +212,21 @@ fn check_one(
     raw: &toml::Table,
     ups: &[Upstream],
 ) -> Vec<String> {
-    let mut out = check_meta(rel, raw, phase, ups);
+    let mut out = Vec::new();
     match phase {
         "phase1-dense" if path.file_name().is_some_and(|n| n != "smoke-tiny.toml") => {
+            out.extend(check_meta(rel, raw, phase, ups));
             out.extend(check_overrides(rel, raw));
         }
-        "phase1-moe" => out.extend(check_moe(rel, raw)),
-        "phase2-post" => out.extend(check_post_stages(rel, raw, ups)),
+        "phase1-moe" => {
+            out.extend(check_meta(rel, raw, phase, ups));
+            out.extend(check_moe(rel, raw));
+        }
+        "phase2-post" => {
+            out.extend(check_meta(rel, raw, phase, ups));
+            out.extend(check_post_stages(rel, raw, ups));
+        }
+        // The smoke configs and the phase-3 upstream-format config carry no [meta].
         _ => {}
     }
     out
