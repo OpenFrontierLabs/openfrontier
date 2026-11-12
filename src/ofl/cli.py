@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 from ofl import deploy as deploy_mod
 from ofl import doctor as doctor_mod
-from ofl import moe, phases, run0, tasks, upstreams
+from ofl import moe, phases, run0, swarm, tasks, upstreams
 from ofl.repo import OflError, find_root
 
 TARGETS: dict[str, str] = {
@@ -41,6 +41,9 @@ def _help(_args: argparse.Namespace) -> int:
     print("  moe launch|verify   phase 1 MoE: Megatron-LM command for one node / check its flags")
     print("  post launch         phase 2: not built")
     print("  diloco launch       phase 3: not built")
+    print("  swarm coordinator   swarm PoC: node registry + DiLoCo outer steps over HTTP")
+    print("  swarm status        swarm PoC: registry and run progress")
+    print("  node join           swarm PoC: train as a node of a coordinator's run")
     return 0
 
 
@@ -130,6 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
         sub_p.add_parser("launch", help="not built").set_defaults(
             func=lambda _a, ph=phase: phases.not_built(ph)
         )
+    swarm.add_parsers(sub)
     return parser
 
 
