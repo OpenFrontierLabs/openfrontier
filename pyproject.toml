@@ -56,7 +56,7 @@ strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["ofl.smoke.*"]
+module = ["ofl.smoke.*", "ofl.swarm.model"]
 # torch and olmo_core are skipped (huge, untyped in places): their classes are Any here.
 disallow_subclassing_any = false
 
