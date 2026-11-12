@@ -1,5 +1,7 @@
 # Open Frontier Labs
 
+[Read the manifesto](MANIFESTO.md)
+
 **Open infrastructure for collective frontier intelligence: fully open models trained on community compute.**
 
 Open Frontier Labs is what OpenAI should have been, with a pure community vibe: built in public, meant to be owned by a nonprofit, and trained on compute the community pools. No equity, no token, no closed tier.
