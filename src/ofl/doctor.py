@@ -57,6 +57,10 @@ class TorchInfo:
     cuda_build: str | None  # torch.version.cuda
     cuda_available: bool
     devices: tuple[str, ...]
+    hip_build: str | None = None  # torch.version.hip
+    mps_available: bool = False  # torch.backends.mps.is_available()
+    device_memory_bytes: tuple[int | None, ...] = ()
+    mps_recommended_max_bytes: int | None = None
 
 
 @dataclass
@@ -125,8 +129,35 @@ def _torch() -> TorchInfo | None:
     except ImportError:
         return None
     available = bool(torch.cuda.is_available())
-    names = tuple(torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count()))
-    return TorchInfo(torch.__version__, torch.version.cuda, available, names)
+    count = int(torch.cuda.device_count()) if available else 0
+    names = tuple(torch.cuda.get_device_name(i) for i in range(count))
+    memories: list[int | None] = []
+    for i in range(count):
+        try:
+            props = torch.cuda.get_device_properties(i)
+            memories.append(int(props.total_memory))
+        except Exception:
+            memories.append(None)
+    hip_build: str | None = getattr(torch.version, "hip", None)
+    mps_backend = getattr(torch.backends, "mps", None)
+    mps_available = bool(mps_backend is not None and mps_backend.is_available())
+    mps_max: int | None = None
+    mps_mod = getattr(torch, "mps", None)
+    if mps_available and mps_mod is not None and hasattr(mps_mod, "recommended_max_memory"):
+        try:
+            mps_max = int(mps_mod.recommended_max_memory())
+        except Exception:
+            mps_max = None
+    return TorchInfo(
+        version=torch.__version__,
+        cuda_build=torch.version.cuda,
+        cuda_available=available,
+        devices=names,
+        hip_build=hip_build,
+        mps_available=mps_available,
+        device_memory_bytes=tuple(memories),
+        mps_recommended_max_bytes=mps_max,
+    )
 
 
 def _version(name: str) -> str | None:
@@ -136,42 +167,132 @@ def _version(name: str) -> str | None:
         return None
 
 
+def _format_gib(num_bytes: int | None) -> str:
+    if num_bytes is None or num_bytes <= 0:
+        return "memory not exposed by torch"
+    return f"{num_bytes / 2**30:.1f} GiB"
+
+
 def _gpu_rows(host: Host, torch_info: TorchInfo | None) -> list[Row]:
     rc, out = host.run(
         ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"]
     )
-    if rc != 0 or not out:
-        return [
-            Row("warn", "gpu", "no GPU: CPU smoke only (nvidia-smi not found or reported none)"),
-            Row("info", "cuda", "n/a without a GPU"),
+    if rc == 0 and out:
+        lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+        rows = [
+            Row("ok", "gpu", f"{len(lines)} x {lines[0].split(',')[0].strip()} (backend: cuda)")
         ]
-    lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
-    rows = [Row("ok", "gpu", f"{len(lines)} x {lines[0].split(',')[0].strip()}")]
-    rows.extend(Row("info", f"gpu {i}", ln) for i, ln in enumerate(lines))
-    driver = lines[0].split(",")[-1].strip()
-    if torch_info is None:
-        rows.append(Row("info", "cuda", f"driver {driver}; torch not importable"))
-    elif torch_info.cuda_build is None:
-        rows.append(
-            Row(
-                "info",
-                "cuda",
-                f"driver {driver}; this environment's torch {torch_info.version} is a CPU build "
-                "(expected: GPU runs use their own environment, see docs/run0.md)",
+        rows.extend(Row("info", f"gpu {i}", ln) for i, ln in enumerate(lines))
+        driver = lines[0].split(",")[-1].strip()
+        if torch_info is None:
+            rows.append(Row("info", "cuda", f"driver {driver}; torch not importable"))
+        elif torch_info.cuda_build is None:
+            rows.append(
+                Row(
+                    "info",
+                    "cuda",
+                    f"driver {driver}; this environment's torch {torch_info.version} is a CPU "
+                    "build (expected: GPU runs use their own environment, see docs/run0.md)",
+                )
             )
-        )
-    else:
-        state = "usable" if torch_info.cuda_available else "NOT usable from torch"
-        status = "ok" if torch_info.cuda_available else "warn"
-        rows.append(
-            Row(
-                status,
-                "cuda",
-                f"driver {driver}; torch {torch_info.version} built for CUDA "
-                f"{torch_info.cuda_build}, {state}",
+        else:
+            state = "usable" if torch_info.cuda_available else "NOT usable from torch"
+            status = "ok" if torch_info.cuda_available else "warn"
+            rows.append(
+                Row(
+                    status,
+                    "cuda",
+                    f"driver {driver}; torch {torch_info.version} built for CUDA "
+                    f"{torch_info.cuda_build}, {state}",
+                )
             )
+        rows.append(Row("info", "rocm", "not present (no ROCm device)"))
+        rows.append(Row("info", "mps", "not present (Apple MPS not available)"))
+        return rows
+
+    if torch_info is not None and torch_info.hip_build is not None:
+        if torch_info.cuda_available and torch_info.devices:
+            count = len(torch_info.devices)
+            first = torch_info.devices[0]
+            first_mem = (
+                torch_info.device_memory_bytes[0] if torch_info.device_memory_bytes else None
+            )
+            rows = [
+                Row(
+                    "ok",
+                    "gpu",
+                    f"{count} x {first} ({_format_gib(first_mem)}, backend: rocm)",
+                )
+            ]
+            for i, dev in enumerate(torch_info.devices):
+                mem_b = (
+                    torch_info.device_memory_bytes[i]
+                    if i < len(torch_info.device_memory_bytes)
+                    else None
+                )
+                rows.append(
+                    Row(
+                        "info",
+                        f"gpu {i}",
+                        f"{dev}, {_format_gib(mem_b)}, ROCm {torch_info.hip_build}",
+                    )
+                )
+            rows.append(Row("info", "cuda", "n/a (ROCm build)"))
+            rows.append(
+                Row(
+                    "ok",
+                    "rocm",
+                    f"torch {torch_info.version} built for ROCm {torch_info.hip_build}, "
+                    f"usable ({count} device(s))",
+                )
+            )
+            rows.append(Row("info", "mps", "not present (Apple MPS not available)"))
+            return rows
+        return [
+            Row(
+                "warn",
+                "gpu",
+                "no GPU: CPU smoke only (ROCm torch build found no usable device)",
+            ),
+            Row("info", "cuda", "n/a (ROCm build)"),
+            Row(
+                "warn",
+                "rocm",
+                f"torch {torch_info.version} built for ROCm {torch_info.hip_build}, "
+                "NOT usable from torch",
+            ),
+            Row("info", "mps", "not present (Apple MPS not available)"),
+        ]
+
+    if torch_info is not None and torch_info.mps_available:
+        sysctl_rc, sysctl_out = host.run(["sysctl", "-n", "machdep.cpu.brand_string"])
+        chip = sysctl_out.strip() if sysctl_rc == 0 and sysctl_out.strip() else "Apple Silicon"
+        mem_str = (
+            f"{_format_gib(torch_info.mps_recommended_max_bytes)} recommended max"
+            if torch_info.mps_recommended_max_bytes
+            else "unified memory (size not exposed by torch)"
         )
-    return rows
+        return [
+            Row("ok", "gpu", f"1 x {chip} ({mem_str}, backend: mps)"),
+            Row("info", "cuda", "n/a (Apple MPS)"),
+            Row("info", "rocm", "not present (no ROCm device)"),
+            Row(
+                "ok",
+                "mps",
+                f"Apple MPS usable from torch {torch_info.version} ({chip}, {mem_str})",
+            ),
+        ]
+
+    return [
+        Row(
+            "warn",
+            "gpu",
+            "no GPU: CPU smoke only (no CUDA, ROCm or MPS device detected)",
+        ),
+        Row("info", "cuda", "n/a without a GPU"),
+        Row("info", "rocm", "not present (no ROCm device)"),
+        Row("info", "mps", "not present (Apple MPS not available)"),
+    ]
 
 
 def _network_rows(host: Host) -> list[Row]:
