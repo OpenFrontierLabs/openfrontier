@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software, please cite it using these metadata.
+  Every contributor with merged work is an author; add yourself in your first PR.
+title: "Open Frontier Labs: open infrastructure for collective frontier intelligence"
+type: software
+authors:
+  - family-names: Lishman
+    given-names: Brad
+    alias: bradlishman
+  - name: Open Frontier Labs contributors
+repository-code: "https://github.com/OpenFrontierLabs/openfrontier"
+url: "https://openfrontier-labs.com"
+license: Apache-2.0
+version: 0.0.1
+keywords:
+  - large language models
+  - distributed training
+  - DiLoCo
+  - open weights
+  - community compute
+abstract: >-
+  Scaffolding for fully open language models trained on community-pooled compute:
+  the ofl CLI, pinned upstream configs, dataset manifests and a public compute ledger.
+  Nothing has been trained yet.
