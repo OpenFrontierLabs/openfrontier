@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 use crate::error::{OflError, Result};
 use crate::repo::find_root;
@@ -163,6 +163,15 @@ enum MoeAction {
 enum UnbuiltAction {
     /// Not built.
     Launch,
+}
+
+/// Assert the CLI definition is internally consistent.
+///
+/// Panics on a broken definition (duplicate names, bad defaults); called by the
+/// test suite so a malformed parser fails `cargo test` rather than every binary
+/// invocation.
+pub fn debug_assert() {
+    Cli::command().debug_assert();
 }
 
 /// Parse, dispatch, report. Returns the process exit code.
