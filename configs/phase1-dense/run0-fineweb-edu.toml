@@ -1,0 +1,43 @@
+# Run 0 on FineWeb-Edu (HuggingFaceFW/fineweb-edu, ODC-By). Same recipe as run0.toml.
+# OLMo-core reads pre-tokenised 1D .npy files, not parquet text, and ofl does not tokenise.
+# You supply the shards: `ofl run0 launch --config configs/phase1-dense/run0-fineweb-edu.toml
+# --data-glob '/data/fineweb-edu-dolma2/*.npy'`. They MUST be tokenised with allenai/dolma2-tokenizer
+# with an EOS token (id 100257) after every document, or the tokenizer overrides below are wrong.
+# Status: scaffolding. No shards exist yet and nothing has been trained.
+
+[meta]
+phase = "phase1-dense"
+name = "run0-fineweb-edu"
+upstream = "olmo-core"
+
+[launch]
+entrypoint = "src/examples/llm/train.py"
+model_factory = "olmo2_1B_v2"
+sequence_length = 4096
+
+[data]
+source = "glob"
+manifest = "manifests/datasets.toml"
+
+[overrides]
+"dataset.tokenizer.vocab_size" = 100278
+"dataset.tokenizer.eos_token_id" = 100257
+"dataset.tokenizer.pad_token_id" = 100277
+"dataset.tokenizer.bos_token_id" = "null"
+"dataset.tokenizer.identifier" = "allenai/dolma2-tokenizer"
+"model.vocab_size" = 100352
+"init_seed" = 12536
+"data_loader.seed" = 0
+"data_loader.global_batch_size" = 2097152
+"train_module.rank_microbatch_size" = 32768
+"train_module.optim.lr" = 0.0004
+"train_module.optim.weight_decay" = 0.033
+"train_module.optim.betas" = [0.9, 0.95]
+"train_module.scheduler.warmup_steps" = 2000
+"train_module.z_loss_multiplier" = 0.00001
+"trainer.max_duration.unit" = "tokens"
+"trainer.max_duration.value" = 30000000000
+"trainer.callbacks.checkpointer.save_interval" = 2000
+"trainer.callbacks.checkpointer.ephemeral_save_interval" = 500
+"trainer.callbacks.lm_evaluator.enabled" = false
+"trainer.callbacks.downstream_evaluator.enabled" = false

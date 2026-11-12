@@ -1,0 +1,38 @@
+# Phase 3: a DiLoCo outer loop across islands, using the pinned prime-diloco (configs/upstreams.toml).
+# Status: configured, NOT BUILT. `ofl diloco launch` refuses to run (see docs/phase3-diloco.md).
+# Nothing has been trained with this config and no island setup exists.
+#
+# This is a prime-diloco config file in its own format (src/zeroband/config.py at the pinned
+# commit); it parses with that Config class (checked once by hand in a scratch environment,
+# not by `ofl check`, which does not install prime-diloco).
+# Values: configs/1B/H100.toml in the pinned upstream, plus the DiLoCo block.
+#   inner_steps = 500   OpenDiLoCo's 1.1B setting (the INTELLECT-1 10B run used 100)
+#   compression = uint8 int8-style pseudo-gradient all-reduce, supported by upstream
+#   outer optimiser     SGD, Nesterov momentum 0.9: hard-coded in upstream diloco.py, only outer_lr is a key
+# Model definition upstream is Llama-style ("llama2" with the Mistral-7B tokenizer): no QK-Norm.
+
+name_model = "1B"
+project = "ofl-phase3-diloco-1b"
+type_model = "llama2"
+metric_logger_type = "dummy"
+
+[train]
+micro_bs = 32
+reshard_after_forward = true
+
+[optim]
+batch_size = 1024
+warmup_steps = 1000
+total_steps = 8192
+
+[optim.optim]
+lr = 7e-4
+
+[data]
+dataset_name_or_paths = "datasets/fineweb-edu"
+seq_length = 1024
+
+[diloco]
+inner_steps = 500
+outer_lr = 0.7
+compression = "uint8"

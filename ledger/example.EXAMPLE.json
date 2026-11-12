@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "example": true,
+  "run": "run0",
+  "period": { "start": "2000-01-01", "end": "2000-01-07" },
+  "islands": [
+    {
+      "id": "example-island",
+      "name": "Example Island (not a real cluster)",
+      "donor": "Example Donor (not a real donor)"
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "example-node-1",
+      "github_handle": "example-handle-one",
+      "island": "example-island",
+      "gpu_hours": 168.0,
+      "tokens_processed": 1000000,
+      "helpful_update_share": 0.9
+    },
+    {
+      "node_id": "example-node-2",
+      "github_handle": "example-handle-two",
+      "gpu_hours": 24.5,
+      "tokens_processed": 250000,
+      "helpful_update_share": 0.75
+    }
+  ]
+}
