@@ -26,7 +26,7 @@ pub const TARGETS: [(&str, &str); 11] = [
 
 /// Open Frontier Labs command line.
 #[derive(Parser)]
-#[command(name = "ofl", about = "Open Frontier Labs command line.")]
+#[command(name = "ofl", about = "Open Frontier Labs command line.", disable_help_subcommand = true)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
