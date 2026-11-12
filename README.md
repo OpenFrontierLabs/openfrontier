@@ -1,6 +1,6 @@
 # Open Frontier Labs
 
-[Read the manifesto](MANIFESTO.md)
+[Read the manifesto](MANIFESTO.md) · [Architecture](docs/ARCHITECTURE.md)
 
 **Open infrastructure for collective frontier intelligence: fully open models trained on community compute.**
 
@@ -52,7 +52,7 @@ Code, compute and results are all welcome. [CONTRIBUTING.md](CONTRIBUTING.md) sa
 ## Links
 
 - Organisation: <https://github.com/OpenFrontierLabs>
-- [Manifesto](MANIFESTO.md), [Governance](GOVERNANCE.md), [Credits](CREDITS.md), [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Manifesto](MANIFESTO.md), [Architecture](docs/ARCHITECTURE.md), [Governance](GOVERNANCE.md), [Credits](CREDITS.md), [Code of Conduct](CODE_OF_CONDUCT.md)
 - Founding steward: [@bradlishman](https://github.com/bradlishman)
 
 ## Licence
