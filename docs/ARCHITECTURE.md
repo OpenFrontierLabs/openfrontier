@@ -65,6 +65,7 @@ DiLoCo-style local steps, compressed model updates, low-bandwidth sync. This is 
 - **DiLoCo reference** (`src/ofl/smoke/diloco_ref.py`, run by `make smoke`): the DiLoCo algorithm in plain PyTorch on CPU. Two workers run inner AdamW, average the pseudo-gradient, and take an outer Nesterov SGD step. The smoke fails unless the loss falls, workers diverge during inner steps, and they are bit-identical after each sync. It proves the algorithm, on a toy model; it is not prime-diloco and does no compression.
 - **prime-diloco config** (`configs/phase3-diloco/diloco-1b.toml`): a 1B config in the pinned upstream's format, with `uint8` pseudo-gradient compression. `ofl diloco launch` exits with `not built`. The upstream needs CUDA and has not been run.
 - **OLMo-core launcher** (`src/ofl/run0.py`, `ofl run0 launch`): builds the real single-node OLMo-core command for the 1B dense baseline. In Mode A each island is such a single-node trainer, so this is the island's inner trainer. It has not run on a GPU. The Megatron-LM MoE launcher (`src/ofl/moe.py`) is the same for the MoE track.
+- **Compute ledger** (`ledger/schema.json`, `src/ofl/ledger.py`): Mode A's contribution accounting. `islands[]` records the islands and their donors; `nodes[]` records each node's GPU-hours, tokens and `helpful_update_share`, the fraction of its submitted updates that lowered the loss. The schema and validator exist; nothing produces `helpful_update_share` yet, because no update scoring exists. See [layer 5](#5-storage--evidence).
 
 ### Mode B: sharded distributed training
 
