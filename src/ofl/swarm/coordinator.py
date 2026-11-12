@@ -28,6 +28,7 @@ import torch
 
 from ofl.repo import OflError
 from ofl.swarm import model as m
+from ofl.swarm import report as rp
 
 SHAKESPEARE_URL = (
     "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
@@ -73,8 +74,17 @@ def git_sha() -> str:
 
 
 class Coordinator:
-    def __init__(self, text: str, cfg: RunConfig, mcfg_kw: dict[str, int], state_dir: Path):
+    def __init__(
+        self,
+        text: str,
+        cfg: RunConfig,
+        mcfg_kw: dict[str, int],
+        state_dir: Path,
+        reporter: rp.Reporter | None = None,
+    ):
         self.cfg = cfg
+        self.reporter = reporter
+        self.created = time.time()
         self.lock = threading.Lock()
         self.done = threading.Event()
         self.state_dir = state_dir
@@ -170,6 +180,27 @@ class Coordinator:
         }
         (self.run_dir / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
 
+    # ---- reporting to the website (best effort; Reporter never blocks or raises) -----------
+    def _run_report(self, *, status: str, ended: bool = False) -> dict[str, Any]:
+        return rp.run_report(
+            run_id=self.run_id,
+            model=self.mcfg.to_json(),
+            params=int(self.global_w.numel()),
+            rounds=self.cfg.rounds,
+            status=status,
+            started_at=self.created,
+            members=list(self.members),
+            git_sha=self.git_sha,
+            initial_val_loss=self.initial_loss,
+            weights_hash=self.hash,
+            ended_at=time.time() if ended else None,
+            wall_seconds=self.wall if ended else None,
+        )
+
+    def _report(self, **parts: Any) -> None:
+        if self.reporter is not None:
+            self.reporter.send(parts)
+
     # ---- protocol ---------------------------------------------------------------------------
     def register(self, info: dict[str, Any]) -> dict[str, Any]:
         node_id = f"{info['hostname']}-{info['device']}"
@@ -191,6 +222,12 @@ class Coordinator:
                 self.started = time.time()
             self._persist()
             rank = self.members.index(node_id)
+            if self.reporter is not None:
+                self.reporter.last_heartbeat[node_id] = self.reporter.clock()
+            self._report(
+                nodes=[rp.node_report(self.registry[node_id])],
+                run=self._run_report(status=self.state),
+            )
         print(f"registered {node_id} as rank {rank}: {info.get('gpu_name')}", flush=True)
         return {
             "node_id": node_id,
@@ -212,6 +249,8 @@ class Coordinator:
                 raise OflError(f"unknown node {node_id}", code=404)
             self.registry[node_id]["last_heartbeat"] = time.time()
             self._persist()
+            if self.reporter is not None:
+                self.reporter.heartbeat(rp.node_report(self.registry[node_id]))
 
     def submit(self, rnd: int, node_id: str, delta: torch.Tensor, meta: dict[str, Any]) -> None:
         with self.lock:
@@ -249,6 +288,10 @@ class Coordinator:
             with (self.run_dir / "log.jsonl").open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(entry) + "\n")
             self.pending.clear()
+            self._report(
+                run=self._run_report(status="training"),
+                rounds=[rp.round_report(self.run_id, entry, time.time())],
+            )
             agree = set(entry["node_hashes"].values()) == {served}
             print(
                 f"round {rnd:>3} val_loss {loss:.4f} hashes {'agree' if agree else 'DIFFER'}",
@@ -276,6 +319,7 @@ class Coordinator:
             (self.run_dir / "weights.f32").write_bytes(self.weights)
             self.round = self.cfg.rounds
             self.state = "done"
+            self._report(run=self._run_report(status="done", ended=True))
             self._write_receipt()
             self._persist()
 
@@ -366,6 +410,8 @@ def serve(
     if on_bound is not None:
         on_bound(bound)
     coord.done.wait()
+    if coord.reporter is not None:
+        coord.reporter.close()
     server.shutdown()
     server.server_close()
     print(f"run done: receipt {coord.run_dir / 'receipt.json'}", flush=True)
