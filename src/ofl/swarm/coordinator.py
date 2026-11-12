@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import socket
+import ssl
 import subprocess
 import threading
 import time
@@ -22,6 +23,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+import certifi
 import torch
 
 from ofl.repo import OflError
@@ -53,7 +55,8 @@ def load_text(path: Path | None, state_dir: Path) -> str:
     cached = state_dir / "data" / "tinyshakespeare.txt"
     if not cached.is_file():
         cached.parent.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(SHAKESPEARE_URL, timeout=60) as resp:
+        tls = ssl.create_default_context(cafile=certifi.where())
+        with urllib.request.urlopen(SHAKESPEARE_URL, timeout=60, context=tls) as resp:
             cached.write_bytes(resp.read())
     return cached.read_text(encoding="utf-8")
 
