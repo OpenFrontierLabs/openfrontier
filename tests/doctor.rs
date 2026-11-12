@@ -1,3 +1,4 @@
+#![cfg(test)]
 //! Doctor report tests with fake machine probes.
 
 use std::path::Path;

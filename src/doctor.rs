@@ -106,7 +106,9 @@ impl Host {
     #[must_use]
     pub fn real(root: &Path) -> Self {
         let python = smoke_python(root);
+        // ubs:ignore[rust.collections.clone-any] -- each probe closure owns its interpreter path; two clones at construction, not in a loop.
         let torch_python = python.clone();
+        // ubs:ignore[rust.collections.clone-any] -- each probe closure owns its interpreter path; two clones at construction, not in a loop.
         let version_python = python.clone();
         Self {
             python: python_version(&python),
@@ -189,13 +191,12 @@ fn toolchain_rows(host: &Host) -> Vec<Row> {
         }),
     }
     for pkg in ["ai2-olmo-core", "jsonschema"] {
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- two fixed package names; building report rows, not a hot path.
+        let name = pkg.to_owned();
         match (host.version)(pkg) {
-            Some(ver) => rows.push(Row { status: "ok", name: pkg.to_owned(), detail: ver }),
-            None => rows.push(Row {
-                status: "warn",
-                name: pkg.to_owned(),
-                detail: "not installed".to_owned(),
-            }),
+            Some(ver) => rows.push(Row { status: "ok", name, detail: ver }),
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- two fixed package names; building report rows, not a hot path.
+            None => rows.push(Row { status: "warn", name, detail: "not installed".to_owned() }),
         }
     }
     rows
@@ -228,6 +229,7 @@ fn gpu_rows(host: &Host, torch_info: Option<&TorchInfo>) -> Vec<Row> {
         detail: format!("{} x {name}", lines.len()),
     }];
     for (i, line) in lines.iter().enumerate() {
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- one report row per GPU; building the doctor table, not a hot path.
         rows.push(Row { status: "info", name: format!("gpu {i}"), detail: (*line).to_owned() });
     }
     let driver = first.split(',').next_back().unwrap_or("").trim();
@@ -270,6 +272,7 @@ fn cuda_row(driver: &str, torch_info: Option<&TorchInfo>) -> Row {
 fn disk_row(host: &Host, repo: &Path) -> Row {
     // Free bytes fit comfortably in f64 for any real disk; precision loss is immaterial.
     #[expect(clippy::cast_precision_loss, reason = "disk byte counts are far below 2^52")]
+    // ubs:ignore[rust.casts.as-casts] -- byte count to f64 for a GiB ratio; values are far below 2^52, no meaningful truncation.
     let free = (host.disk_free_bytes)(repo) as f64 / GIB;
     let status = if free < FAIL_FREE_GIB {
         "FAIL"
@@ -292,6 +295,7 @@ fn network_rows(host: &Host) -> Vec<Row> {
     let mut skew_hosts: Vec<&str> = Vec::new();
     for name in HOSTS {
         let Some(dns) = (host.dns)(name) else {
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- one report row per probed host; building the doctor table, not a hot path.
             rows.push(Row {
                 status: "FAIL",
                 name: format!("net {name}"),
@@ -302,7 +306,8 @@ fn network_rows(host: &Host) -> Vec<Row> {
         let probes: Vec<HttpsProbe> = (0..HTTPS_SAMPLES).map(|_| (host.https)(name)).collect();
         let good: Vec<&HttpsProbe> = probes.iter().filter(|p| p.ok).collect();
         if good.is_empty() {
-            let err = probes.last().map(|p| p.error.clone()).unwrap_or_default();
+            let err = probes.last().map(|p| p.error.as_str()).unwrap_or_default();
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- one report row per probed host; building the doctor table, not a hot path.
             rows.push(Row {
                 status: "FAIL",
                 name: format!("net {name}"),
@@ -311,6 +316,7 @@ fn network_rows(host: &Host) -> Vec<Row> {
             continue;
         }
         let median = median_seconds(&good);
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- one report row per probed host; building the doctor table, not a hot path.
         rows.push(Row {
             status: "ok",
             name: format!("net {name}"),
@@ -325,6 +331,7 @@ fn network_rows(host: &Host) -> Vec<Row> {
         if let Some(date) = good.iter().find_map(|p| p.server_date) {
             // Clock skew in seconds is tiny; the i64->f64 cast is exact here.
             #[expect(clippy::cast_precision_loss, reason = "skew seconds are far below 2^52")]
+            // ubs:ignore[rust.casts.as-casts] -- skew seconds to f64; values are far below 2^52, no meaningful truncation.
             let skew = ((host.now)() - date) as f64;
             skews.push(skew);
             skew_hosts.push(name);
@@ -339,7 +346,12 @@ fn median_seconds(good: &[&HttpsProbe]) -> f64 {
     let mut secs: Vec<f64> = good.iter().map(|p| p.seconds).collect();
     secs.sort_by(f64::total_cmp);
     let mid = secs.len() / 2;
-    if secs.len() % 2 == 1 { secs[mid] } else { f64::midpoint(secs[mid - 1], secs[mid]) }
+    // Callers pass only non-empty probe sets; the fallback keeps this panic-free regardless.
+    match secs.get(mid) {
+        Some(&center) if secs.len() % 2 == 1 => center,
+        Some(&center) => f64::midpoint(secs.get(mid - 1).copied().unwrap_or(center), center),
+        None => 0.0,
+    }
 }
 
 /// Clock skew judged by the host that agrees best (a cached CDN Date inflates one host).
@@ -368,6 +380,7 @@ pub fn render(rows: &[Row]) -> String {
     let width = rows.iter().map(|r| r.name.len()).max().unwrap_or(0);
     let mut lines = vec![format!("{:<6}  {:<width$}  DETAIL", "STATUS", "CHECK")];
     for r in rows {
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- one rendered line per report row; building the doctor table, not a hot path.
         lines.push(format!("{:<6}  {:<width$}  {}", r.status, r.name, r.detail));
     }
     lines.join("\n")

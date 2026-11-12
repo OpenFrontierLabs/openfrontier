@@ -1,3 +1,4 @@
+#![cfg(test)]
 #![expect(clippy::unwrap_used, reason = "test assertions panic on failure")]
 //! Config, manifest and launcher command-building tests.
 

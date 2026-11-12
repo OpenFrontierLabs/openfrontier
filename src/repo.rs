@@ -83,6 +83,7 @@ pub fn run(spec: &RunSpec<'_>, timeout: Option<Duration>) -> Result<i32> {
     }
     let joined = shlex::try_join(spec.argv.iter().map(String::as_str))
         .map_err(|e| OflError::new(format!("argv cannot be shell-quoted: {e}")))?;
+    // ubs:ignore[rust.ownership.println-macro] -- echoing the command before running it is the CLI's documented behavior (like make/shell -x).
     println!("+ {joined}");
     let mut cmd = command(spec);
     let child = spawn(&mut cmd, spec.argv)?;
@@ -94,12 +95,12 @@ pub fn run(spec: &RunSpec<'_>, timeout: Option<Duration>) -> Result<i32> {
 /// output, never an error.
 #[must_use]
 pub fn run_captured(argv: &[String], timeout: Duration) -> (i32, String) {
-    let Some(program) = argv.first() else {
+    let Some((program, rest)) = argv.split_first() else {
         return (HELPER_FAIL_CODE, String::new());
     };
     // ubs:ignore[rust.security.command-executable] -- trusted operator CLI: the executable is caller/config argv (git, uv, python, upstream trainers), the tool's purpose; no shell, no lower-trust input, same as the Python subprocess.run it replaces.
     let mut cmd = Command::new(program);
-    cmd.args(&argv[1..]).stdout(Stdio::piped()).stderr(Stdio::null());
+    cmd.args(rest).stdout(Stdio::piped()).stderr(Stdio::null());
     let Ok(mut child) = cmd.spawn() else {
         return (HELPER_FAIL_CODE, String::new());
     };
@@ -120,9 +121,13 @@ pub fn run_captured(argv: &[String], timeout: Duration) -> (i32, String) {
 
 /// Build the configured command with inherited stdio.
 fn command(spec: &RunSpec<'_>) -> Command {
-    // `run` rejects an empty argv before calling this.
-    let mut cmd = Command::new(&spec.argv[0]);
-    cmd.args(&spec.argv[1..]);
+    // `run` rejects an empty argv before calling this, so split_first always yields.
+    let Some((program, args)) = spec.argv.split_first() else {
+        return Command::new("");
+    };
+    // ubs:ignore[rust.security.command-executable] -- trusted operator CLI: the executable is caller/config argv (cargo, git, uv, python, upstream trainers); no shell, no lower-trust input. Same trust boundary as run_captured.
+    let mut cmd = Command::new(program);
+    cmd.args(args);
     if let Some(cwd) = spec.cwd {
         cmd.current_dir(cwd);
     }
@@ -168,6 +173,79 @@ fn poll_child(child: &mut Child, limit: Duration) -> Option<i32> {
             Err(_) => return Some(1),
         }
     }
+}
+
+/// Captured output and exit status of a bounded child run.
+#[derive(Debug)]
+pub struct PipedOutput {
+    /// Exit code (1 when the child was killed on timeout or signaled).
+    pub code: i32,
+    /// Everything the child wrote to stdout.
+    pub stdout: String,
+    /// Everything the child wrote to stderr.
+    pub stderr: String,
+    /// True when the child was killed because `limit` elapsed.
+    pub timed_out: bool,
+}
+
+/// Wait for a child, draining its piped output on background threads.
+///
+/// Draining keeps a large output from blocking the child against a full pipe
+/// buffer (the deadlock a poll-then-read loop hits). Kills the child on timeout.
+///
+/// # Errors
+///
+/// [`OflError`] when the child cannot be waited on or a drain thread panics.
+pub fn wait_piped(mut child: Child, limit: Duration) -> Result<PipedOutput> {
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let out_handle = std::thread::spawn(move || drain_stdout(stdout_pipe));
+    let err_handle = std::thread::spawn(move || drain_stderr(stderr_pipe));
+    let start = Instant::now();
+    let mut timed_out = false;
+    let code = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.code().unwrap_or(1),
+            Ok(None) if start.elapsed() < limit => std::thread::sleep(POLL_INTERVAL),
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                timed_out = true;
+                break 1;
+            }
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- error message on the wait-failure exit path, not a per-iteration allocation.
+            Err(e) => return Err(OflError::new(format!("wait failed: {e}"))),
+        }
+    };
+    if timed_out {
+        // A grandchild (git-remote-https, torchrun workers) may still hold the
+        // pipes open; joining the drain threads would block past the timeout.
+        // Drop the handles and report no output rather than hang.
+        return Ok(PipedOutput { code, stdout: String::new(), stderr: String::new(), timed_out });
+    }
+    let stdout = out_handle.join().map_err(|_| OflError::new("stdout drain panicked"))?;
+    let stderr = err_handle.join().map_err(|_| OflError::new("stderr drain panicked"))?;
+    Ok(PipedOutput { code, stdout, stderr, timed_out })
+}
+
+/// Read the stdout pipe to EOF, returning its bytes as lossy UTF-8.
+fn drain_stdout(pipe: Option<std::process::ChildStdout>) -> String {
+    let Some(mut pipe) = pipe else {
+        return String::new();
+    };
+    let mut buf = Vec::new();
+    let _ = pipe.read_to_end(&mut buf);
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
+/// Read the stderr pipe to EOF, returning its bytes as lossy UTF-8.
+fn drain_stderr(pipe: Option<std::process::ChildStderr>) -> String {
+    let Some(mut pipe) = pipe else {
+        return String::new();
+    };
+    let mut buf = Vec::new();
+    let _ = pipe.read_to_end(&mut buf);
+    String::from_utf8_lossy(&buf).into_owned()
 }
 
 /// argv that runs `python -m module args` with the given interpreter.

@@ -31,8 +31,10 @@ fn uv() -> Result<String> {
 fn which(name: &str) -> Option<String> {
     let path = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path) {
+        // ubs:ignore[rust.security.path-traversal] -- standard PATH executable lookup: name is a fixed tool name ("uv"), dirs come from the operator's own PATH.
         let candidate = dir.join(name);
         if candidate.is_file() {
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- returns on the first match; the allocation happens once, not per iteration.
             return Some(candidate.display().to_string());
         }
     }
@@ -161,6 +163,7 @@ pub fn clean() -> Result<i32> {
     let root = find_root(None)?;
     let mut removed: Vec<PathBuf> = Vec::new();
     for name in CLEAN_DIRS {
+        // ubs:ignore[rust.security.path-traversal] -- name is a fixed constant from CLEAN_DIRS, joined under the repo root; no untrusted segment.
         let path = root.join(name);
         if path.exists() {
             std::fs::remove_dir_all(&path)
@@ -297,17 +300,21 @@ fn smoke_module(root: &Path, module: &str, args: &[String], stream: bool) -> Res
 
 /// Run a smoke subprocess writing stdout+stderr to a log, bounded by a timeout.
 fn run_logged(argv: &[String], cwd: &Path, log: &Path) -> Result<i32> {
+    let Some((program, rest)) = argv.split_first() else {
+        return Err(OflError::new("empty smoke command"));
+    };
     let file = std::fs::File::create(log)
         .map_err(|e| OflError::new(format!("cannot create {}: {e}", log.display())))?;
     let stderr =
         file.try_clone().map_err(|e| OflError::new(format!("cannot clone log handle: {e}")))?;
-    let mut child = Command::new(&argv[0])
-        .args(&argv[1..])
+    // ubs:ignore[rust.security.command-executable] -- the smoke interpreter from the repo's own venv; trusted, fixed by ofl.
+    let mut child = Command::new(program)
+        .args(rest)
         .current_dir(cwd)
         .stdout(Stdio::from(file))
         .stderr(Stdio::from(stderr))
         .spawn()
-        .map_err(|e| OflError::new(format!("cannot run {}: {e}", argv[0])))?;
+        .map_err(|e| OflError::new(format!("cannot run {program}: {e}")))?;
     let start = Instant::now();
     loop {
         match child.try_wait() {
@@ -339,6 +346,7 @@ fn report_smoke(log: &Path, rc: i32) {
     if rc != 0 {
         println!("--- last lines of {} ---", log.display());
         let start = lines.len().saturating_sub(FAIL_TAIL_LINES);
+        // ubs:ignore[rust.panic.direct-indexing] -- start = len - N clamped at 0, so start <= len; the slice is always in bounds.
         for line in &lines[start..] {
             println!("{line}");
         }

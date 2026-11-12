@@ -5,7 +5,9 @@
 //! Megatron-LM commit. `ofl moe verify` checks every flag name in the config
 //! (and the ones added at launch) against that commit's source.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use regex::Regex;
 
@@ -73,9 +75,11 @@ pub fn config_flags(raw: &toml::Table, setup_check: bool) -> Result<Vec<String>>
 fn extend_flags(out: &mut Vec<String>, table: &toml::Table) {
     for (flag, value) in table {
         match value {
+            // ubs:ignore[rust.collections.clone-in-loop,rust.collections.clone-any] -- building the argv once from the config; each flag name is owned into the command vector.
             toml::Value::Boolean(true) => out.push(flag.clone()),
             toml::Value::Boolean(false) => {}
             other => {
+                // ubs:ignore[rust.collections.clone-in-loop,rust.collections.clone-any] -- building the argv once from the config; each flag name is owned into the command vector.
                 out.push(flag.clone());
                 out.push(toml_value_string(other));
             }
@@ -86,6 +90,7 @@ fn extend_flags(out: &mut Vec<String>, table: &toml::Table) {
 /// Render a non-bool TOML flag value as Megatron's argparse reads it.
 fn toml_value_string(value: &toml::Value) -> String {
     match value {
+        // ubs:ignore[rust.collections.clone-any] -- the argv owns its strings; one clone per config value at build time.
         toml::Value::String(s) => s.clone(),
         other => other.to_string(),
     }
@@ -133,6 +138,7 @@ pub fn build(config: &Path, dirs: &MoeDirs, python: &str, setup_check: bool) -> 
     let mut env: Vec<(String, String)> = raw
         .get("env")
         .and_then(toml::Value::as_table)
+        // ubs:ignore[rust.collections.clone-any] -- the launch env owns its keys; one clone per config env var at build time.
         .map(|t| t.iter().map(|(k, v)| (k.clone(), toml_value_string(v))).collect())
         .unwrap_or_default();
     env.push(("PYTHONPATH".to_owned(), dirs.megatron_dir.display().to_string()));
@@ -180,6 +186,7 @@ pub fn launch(args: &LaunchArgs) -> Result<i32> {
             [("--tokenizer-dir", &args.tokenizer_dir), ("--data-args-path", &args.data_args_path)]
         {
             if !path.exists() {
+                // ubs:ignore[rust.perf.string-alloc-in-loop] -- error message on the missing-input exit path, not a per-iteration allocation.
                 return Err(OflError::new(format!("{label} {} does not exist", path.display())));
             }
         }
@@ -233,29 +240,47 @@ fn merged_env(overrides: &[(String, String)]) -> Vec<(String, String)> {
         if let Some(slot) = env.iter_mut().find(|(k, _)| k == key) {
             slot.1.clone_from(value);
         } else {
+            // ubs:ignore[rust.collections.clone-in-loop] -- merging a handful of config env vars over the process env once at launch.
             env.push((key.clone(), value.clone()));
         }
     }
     env
 }
 
-/// A flag exists if Megatron defines it as an argparse literal, a metadata name or a field.
-fn flag_known(flag: &str, texts: &[String]) -> bool {
+/// Matches a Python dataclass/metadata field declaration (`    name: type`) at
+/// the start of a line; compiled once.
+#[expect(clippy::expect_used, reason = "the regex literal is compile-time valid")]
+// ubs:ignore[rust.perf.regex-new,rust.ownership.unwrap-expect] -- compiled once in a LazyLock static; the expect is on a compile-time-valid literal, not runtime input.
+static FIELD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^\s+(\w+)\s*:").expect("static regex is valid"));
+
+/// Collect every field name Megatron's source declares, once per verify run.
+fn declared_fields(texts: &[String]) -> HashSet<String> {
+    let mut fields = HashSet::new();
+    for text in texts {
+        for cap in FIELD_RE.captures_iter(text) {
+            if let Some(name) = cap.get(1) {
+                // ubs:ignore[rust.perf.string-alloc-in-loop] -- collecting the declared-field set once per verify run; each name is owned into the set.
+                fields.insert(name.as_str().to_owned());
+            }
+        }
+    }
+    fields
+}
+
+/// A flag exists if Megatron defines it as an argparse literal or a dataclass
+/// field (or the field behind a `--no-` negation).
+fn flag_known(flag: &str, texts: &[String], fields: &HashSet<String>) -> bool {
     let single = format!("'{flag}'");
     let double = format!("\"{flag}\"");
     if texts.iter().any(|t| t.contains(&single) || t.contains(&double)) {
         return true;
     }
     let field = flag.trim_start_matches('-').replace('-', "_");
-    let candidates: Vec<String> =
-        [field.clone(), field.strip_prefix("no_").map(str::to_owned).unwrap_or(field)]
-            .into_iter()
-            .collect();
-    let pattern = format!(r"(?m)^\s+(?:{})\s*:", candidates.join("|"));
-    let Ok(re) = Regex::new(&pattern) else {
-        return false;
-    };
-    texts.iter().any(|t| re.is_match(t))
+    if fields.contains(&field) {
+        return true;
+    }
+    field.strip_prefix("no_").is_some_and(|stripped| fields.contains(stripped))
 }
 
 /// Flags (tokens starting with `--`) that Megatron's source under `megatron_dir` does not define.
@@ -265,11 +290,12 @@ fn flag_known(flag: &str, texts: &[String]) -> bool {
 /// [`OflError`] when the source tree cannot be read.
 pub fn unknown_flags(flags: &[String], megatron_dir: &Path) -> Result<Vec<String>> {
     let texts = read_sources(megatron_dir)?;
+    let fields = declared_fields(&texts);
     let mut wanted: Vec<&str> =
         flags.iter().filter(|f| f.starts_with("--")).map(String::as_str).collect();
     wanted.sort_unstable();
     wanted.dedup();
-    Ok(wanted.into_iter().filter(|f| !flag_known(f, &texts)).map(str::to_owned).collect())
+    Ok(wanted.into_iter().filter(|f| !flag_known(f, &texts, &fields)).map(str::to_owned).collect())
 }
 
 /// Read every `.py` file under `megatron_dir/megatron`.

@@ -1,3 +1,4 @@
+#![cfg(test)]
 #![expect(clippy::expect_used, reason = "test helper failures panic")]
 //! Shared helpers for the integration tests: the real repo root.
 

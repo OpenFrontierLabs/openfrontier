@@ -12,6 +12,7 @@ use crate::upstreams::{self, Upstream};
 const PHASE_DIRS: [&str; 4] = ["phase1-dense", "phase1-moe", "phase2-post", "phase3-diloco"];
 /// A dataset revision: 40 lowercase hex digits.
 #[expect(clippy::expect_used, reason = "the regex literal is compile-time valid")]
+// ubs:ignore[rust.perf.regex-new,rust.ownership.unwrap-expect] -- compiled once in a LazyLock static; the expect is on a compile-time-valid literal, not runtime input.
 static HEX40: LazyLock<Regex> =
     LazyLock::new(|| Regex::new("^[0-9a-f]{40}$").expect("static regex is valid"));
 
@@ -154,6 +155,7 @@ fn real(raw: &toml::Table, table: &str, key: &str) -> Result<f64> {
         .ok_or_else(|| OflError::new(format!("smoke config: [{table}].{key} missing")))?;
     // Config numbers are small; the i64->f64 cast cannot lose meaningful precision.
     #[expect(clippy::cast_precision_loss, reason = "config values are far below 2^52")]
+    // ubs:ignore[rust.casts.as-casts] -- config integer to f64; values are far below 2^52, no meaningful truncation.
     let as_float = value.as_integer().map(|i| i as f64);
     value
         .as_float()
@@ -190,6 +192,7 @@ fn check_phase(root: &Path, phase: &str, ups: &[Upstream]) -> Vec<String> {
         out.push(format!("configs/{phase}: no config files"));
     }
     for path in files {
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- one diagnostic path label per config file; a handful of files, not a hot path.
         let rel =
             format!("configs/{phase}/{}", path.file_name().unwrap_or_default().to_string_lossy());
         let raw = match load_toml(&path) {
@@ -212,21 +215,15 @@ fn check_one(
     raw: &toml::Table,
     ups: &[Upstream],
 ) -> Vec<String> {
-    let mut out = Vec::new();
+    // Only the phase-3 configs are in the upstream's own format and carry no [meta].
+    let mut out =
+        if phase == "phase3-diloco" { Vec::new() } else { check_meta(rel, raw, phase, ups) };
     match phase {
         "phase1-dense" if path.file_name().is_some_and(|n| n != "smoke-tiny.toml") => {
-            out.extend(check_meta(rel, raw, phase, ups));
             out.extend(check_overrides(rel, raw));
         }
-        "phase1-moe" => {
-            out.extend(check_meta(rel, raw, phase, ups));
-            out.extend(check_moe(rel, raw));
-        }
-        "phase2-post" => {
-            out.extend(check_meta(rel, raw, phase, ups));
-            out.extend(check_post_stages(rel, raw, ups));
-        }
-        // The smoke configs and the phase-3 upstream-format config carry no [meta].
+        "phase1-moe" => out.extend(check_moe(rel, raw)),
+        "phase2-post" => out.extend(check_post_stages(rel, raw, ups)),
         _ => {}
     }
     out
@@ -292,12 +289,15 @@ fn check_moe(rel: &str, raw: &toml::Table) -> Vec<String> {
         let Some(table) = table.as_table() else { continue };
         for (flag, value) in table {
             if !flag.starts_with("--") {
+                // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
                 out.push(format!("{rel}: [flags.{group}] key {flag:?} does not start with --"));
             }
             if !is_flag_value(value) {
+                // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
                 out.push(format!("{rel}: {flag} has unsupported value type {}", type_name(value)));
             }
             if seen.contains(&flag.as_str()) {
+                // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
                 out.push(format!("{rel}: {flag} appears twice"));
             }
             seen.push(flag);
@@ -397,12 +397,14 @@ fn check_manifest_kind(raw: &toml::Table, rel: &str, kind: &str, required: &[&st
             .unwrap_or("?");
         for key in required {
             if entry.get(*key).is_none() {
+                // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
                 out.push(format!("{rel}: [[{kind}]] {ident} missing {key:?}"));
             }
         }
         if let Some(rev) = entry.get("revision").and_then(toml::Value::as_str)
             && !HEX40.is_match(rev)
         {
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
             out.push(format!("{rel}: [[{kind}]] {ident} revision is not a 40-hex commit"));
         }
     }

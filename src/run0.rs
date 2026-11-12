@@ -188,6 +188,7 @@ fn script_args(
         args.push("--dry-run".to_owned());
     }
     for (key, value) in overrides {
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- building the argv once from the config overrides; not a hot path.
         args.push(format!("--{key}={}", format_override(value)));
     }
     Ok(args)
@@ -325,14 +326,12 @@ fn verify_one(root: &Path, config: &Path, script_dir: &Path) -> Result<bool> {
         return Ok(true);
     }
     println!("FAIL {name}: upstream accepted {count} arguments (--dry-run)");
-    let tail: String = stderr
-        .chars()
-        .rev()
-        .take(STDERR_TAIL_CHARS)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect();
+    // Keep the last STDERR_TAIL_CHARS characters; start at a char boundary.
+    let total = stderr.chars().count();
+    let tail_start =
+        stderr.char_indices().nth(total.saturating_sub(STDERR_TAIL_CHARS)).map_or(0, |(i, _)| i);
+    // ubs:ignore[rust.panic.direct-indexing] -- tail_start comes from char_indices (a valid boundary) or 0; the slice is always in bounds.
+    let tail = &stderr[tail_start..];
     println!("{tail}");
     Ok(false)
 }
@@ -340,30 +339,22 @@ fn verify_one(root: &Path, config: &Path, script_dir: &Path) -> Result<bool> {
 /// Run the upstream script capturing stderr for failure reporting, bounded.
 fn run_verify(argv: &[String]) -> Result<(i32, String)> {
     use std::process::{Command, Stdio};
-    let mut child = Command::new(&argv[0])
-        .args(&argv[1..])
+    let Some((program, rest)) = argv.split_first() else {
+        return Err(OflError::new("empty verify command"));
+    };
+    // ubs:ignore[rust.security.command-executable] -- the smoke interpreter running the pinned upstream script; trusted, fixed by ofl.
+    let child = Command::new(program)
+        .args(rest)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| OflError::new(format!("cannot run {}: {e}", argv[0])))?;
-    let start = std::time::Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if start.elapsed() < VERIFY_TIMEOUT => {
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(OflError::new(format!(
-                    "upstream --dry-run timed out after {} s",
-                    VERIFY_TIMEOUT.as_secs()
-                )));
-            }
-            Err(e) => return Err(OflError::new(format!("wait failed: {e}"))),
-        }
+        .map_err(|e| OflError::new(format!("cannot run {program}: {e}")))?;
+    let out = repo::wait_piped(child, VERIFY_TIMEOUT)?;
+    if out.timed_out {
+        return Err(OflError::new(format!(
+            "upstream --dry-run timed out after {} s",
+            VERIFY_TIMEOUT.as_secs()
+        )));
     }
-    let out = child.wait_with_output().map_err(|e| OflError::new(format!("output failed: {e}")))?;
-    Ok((out.status.code().unwrap_or(1), String::from_utf8_lossy(&out.stderr).into_owned()))
+    Ok((out.code, out.stderr))
 }

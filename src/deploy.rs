@@ -35,6 +35,7 @@ fn collect_step_dirs(dir: &Path, found: &mut Vec<PathBuf>) {
             continue;
         }
         if path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("step")) {
+            // ubs:ignore[rust.collections.clone-in-loop,rust.collections.clone-any] -- the path is both stored and recursed into; one clone is required, not a per-iteration waste.
             found.push(path.clone());
         }
         collect_step_dirs(&path, found);
@@ -46,6 +47,7 @@ fn collect_step_dirs(dir: &Path, found: &mut Vec<PathBuf>) {
 /// # Errors
 ///
 /// [`OflError`] with code 2 for an unknown env or the unimplemented `huggingface` env.
+// ubs:ignore[rust.ownership.println-macro] -- dry-run report is the command's user-facing output; a CLI, not a library log.
 pub fn deploy(env: &str) -> Result<i32> {
     if !ENVS.iter().any(|(name, _)| *name == env) {
         let known: Vec<&str> = ENVS.iter().map(|(name, _)| *name).collect();

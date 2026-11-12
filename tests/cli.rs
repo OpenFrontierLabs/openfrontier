@@ -1,3 +1,4 @@
+#![cfg(test)]
 #![expect(clippy::unwrap_used, reason = "test assertions panic on failure")]
 //! CLI contract, deploy and repo-root tests.
 

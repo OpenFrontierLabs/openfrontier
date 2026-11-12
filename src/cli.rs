@@ -172,6 +172,7 @@ pub fn main() -> ExitCode {
     match dispatch(cli.command) {
         Ok(code) => exit_code(code),
         Err(e) => {
+            // ubs:ignore[rust.ownership.eprintln-macro] -- a CLI's user-facing error channel; no logging framework is warranted for a single-binary tool.
             eprintln!("ofl: {e}");
             exit_code(i32::from(e.code))
         }
@@ -259,6 +260,7 @@ fn dispatch_moe(action: MoeAction) -> Result<i32> {
 }
 
 /// Print the target list and the extra commands.
+// ubs:ignore[rust.ownership.println-macro] -- help text is the command's user-facing output; a CLI, not a library log.
 fn help() -> i32 {
     println!("targets (make <target> or ofl <target>):");
     for (name, text) in TARGETS {

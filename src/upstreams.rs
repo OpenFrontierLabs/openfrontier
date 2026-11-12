@@ -16,6 +16,7 @@ const CHECKOUT_DIR: &str = ".cache/upstreams";
 const GIT_TIMEOUT: Duration = Duration::from_secs(900);
 /// A pinned commit: 40 lowercase hex digits.
 #[expect(clippy::expect_used, reason = "the regex literal is compile-time valid")]
+// ubs:ignore[rust.perf.regex-new,rust.ownership.unwrap-expect] -- compiled once in a LazyLock static; the expect is on a compile-time-valid literal, not runtime input.
 static SHA_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new("^[0-9a-f]{40}$").expect("static regex is valid"));
 
@@ -75,11 +76,14 @@ fn parse(name: &str, entry: &toml::Value) -> Result<Upstream> {
 pub fn problems(ups: &[Upstream]) -> Vec<String> {
     let mut out = Vec::new();
     for up in ups {
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- building one diagnostic message per pin; a handful of upstreams, not a hot path.
         let rel = format!("configs/upstreams.toml [{}]", up.name);
         if !SHA_RE.is_match(&up.sha) {
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
             out.push(format!("{rel}: sha must be 40 lowercase hex digits"));
         }
         if !up.repo.starts_with("https://") {
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
             out.push(format!("{rel}: repo must be an https URL"));
         }
     }
@@ -125,6 +129,7 @@ pub fn ensure_checkout(root: &Path, up: &Upstream) -> Result<PathBuf> {
     }
     std::fs::create_dir_all(&path)
         .map_err(|e| OflError::new(format!("cannot create {}: {e}", path.display())))?;
+    // ubs:ignore[rust.ownership.println-macro] -- user-facing fetch progress on a long clone; CLI output, not a library log.
     println!("fetching {} @ {} into {}", up.repo, up.sha, path.display());
     git(&["init", "-q"], &path)?;
     git(&["remote", "add", "origin", &up.repo], &path)?;
@@ -143,41 +148,28 @@ pub fn ensure_checkout(root: &Path, up: &Upstream) -> Result<PathBuf> {
 
 /// Run one git command in `cwd`, returning trimmed stdout.
 fn git(args: &[&str], cwd: &Path) -> Result<String> {
-    let start = std::time::Instant::now();
     let mut cmd = Command::new("git");
     cmd.args(args)
         .current_dir(cwd)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| OflError::new(format!("git cannot run: {e}")))?;
-    // Bound the clone/fetch: git network operations must not hang forever.
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if start.elapsed() < GIT_TIMEOUT => {
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(OflError::new(format!(
-                    "git {} timed out after {} s",
-                    args.join(" "),
-                    GIT_TIMEOUT.as_secs()
-                )));
-            }
-            Err(e) => return Err(OflError::new(format!("git wait failed: {e}"))),
-        }
+    let child = cmd.spawn().map_err(|e| OflError::new(format!("git cannot run: {e}")))?;
+    // Bound the clone/fetch and drain both pipes so large output cannot deadlock it.
+    let out = crate::repo::wait_piped(child, GIT_TIMEOUT)?;
+    if out.timed_out {
+        return Err(OflError::new(format!(
+            "git {} timed out after {} s",
+            args.join(" "),
+            GIT_TIMEOUT.as_secs()
+        )));
     }
-    let out =
-        child.wait_with_output().map_err(|e| OflError::new(format!("git output failed: {e}")))?;
-    if !out.status.success() {
+    if out.code != 0 {
         return Err(OflError::new(format!(
             "git {} failed in {}: {}",
             args.join(" "),
             cwd.display(),
-            String::from_utf8_lossy(&out.stderr).trim()
+            out.stderr.trim()
         )));
     }
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
+    Ok(out.stdout.trim().to_owned())
 }
