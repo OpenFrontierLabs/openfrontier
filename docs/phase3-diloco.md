@@ -1,6 +1,6 @@
 # Phase 3: DiLoCo outer loops across islands
 
-**Status: configured, not built.** `ofl diloco launch` exits with `not built`. No coordinator, no island setup and no multi-node run exist. Nothing has been trained.
+**Status: configured, not built.** `ofl diloco launch` exits with `not built`. No island setup on prime-diloco exists. Separately, a small swarm proof of concept (our own HTTP coordinator and plain-PyTorch DiLoCo, a 4.8M-parameter char model, no auth) has run across two real machines: see [join-a-node.md](join-a-node.md#swarm-proof-of-concept-two-commands).
 
 ## Upstream
 

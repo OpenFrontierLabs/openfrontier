@@ -1,0 +1,57 @@
+openapi: 3.1.0
+info:
+  title: OFL swarm coordinator (proof of concept)
+  version: 1.0.0
+  description: Node registry and synchronous DiLoCo outer steps. No authentication.
+paths:
+  /v1/status:
+    get:
+      summary: Registry, run state and per-round log
+      responses: {"200": {description: Status JSON, content: {application/json: {}}}}
+  /v1/data:
+    get:
+      summary: The training text (UTF-8)
+      responses: {"200": {description: Text, content: {text/plain: {}}}}
+  /v1/weights:
+    get:
+      summary: Current global weights as little-endian float32, parameters() order
+      responses:
+        "200":
+          description: Weights; headers X-Weights-Hash (SHA-256 of the body) and X-Round
+          content: {application/octet-stream: {}}
+  /v1/nodes:
+    post:
+      summary: Register a node and join the waiting run
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hostname, device, gpu_name, gpu_memory_gib, torch, platform]
+      responses:
+        "200": {description: Node id, rank and training config, content: {application/json: {}}}
+        "409": {description: Run full or already started}
+  /v1/nodes/{node_id}/heartbeat:
+    post:
+      parameters: [{name: node_id, in: path, required: true, schema: {type: string}}]
+      responses: {"200": {description: Recorded}, "404": {description: Unknown node}}
+  /v1/nodes/{node_id}/final:
+    post:
+      summary: Report the hash of the final weights the node loaded
+      parameters: [{name: node_id, in: path, required: true, schema: {type: string}}]
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, required: [weights_hash], properties: {weights_hash: {type: string}}}
+      responses: {"200": {description: Recorded}}
+  /v1/rounds/{round}/pseudo-gradients:
+    post:
+      summary: Push one round's pseudo-gradient (global minus local), float32 little-endian
+      parameters:
+        - {name: round, in: path, required: true, schema: {type: integer}}
+        - {name: node, in: query, required: true, schema: {type: string}}
+        - {name: X-Weights-Hash, in: header, required: true, schema: {type: string}}
+        - {name: X-Train-Loss, in: header, required: true, schema: {type: number}}
+        - {name: X-Inner-Seconds, in: header, required: true, schema: {type: number}}
+      requestBody: {content: {application/octet-stream: {}}}
+      responses: {"200": {description: Accepted}, "409": {description: Wrong round or node}}
