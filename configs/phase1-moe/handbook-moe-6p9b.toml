@@ -1,0 +1,137 @@
+# MoE track: the Hugging Face "Ultimate MoE Training Handbook" first-run MoE, as Megatron-LM flags.
+# Source: first_run.sbatch in the handbook's companion gist (configs/upstreams.toml:
+# hf-moe-handbook-scripts) plus chapter 2.4/2.5 of the handbook (hf-moe-handbook).
+# Target commit: Megatron-LM d6316eb45 (pinned as megatron-lm). Every flag name below (and the
+# ones added at launch) was checked against that commit's source; `ofl moe verify` re-checks them.
+# Status: scaffolding. Nothing has been trained with this config.
+#
+# What the handbook says (read, not assumed):
+#   dense baseline: 16 layers, hidden 2048, FFN 8192, vocab 128,256 -> about 1.22B parameters
+#   MoE: 64 experts of width 1024, top-8, expert parallelism 8 -> 6.86B total, about 1.22B active
+#   (rounded: 6.9B total / 1.2B active)
+#   hardware: one node, eight ~80 GB GPUs (H100 80GB in the handbook runs)
+#   software: NGC pytorch:26.06-py3 image, Megatron d6316eb45, Slurm+Enroot+Pyxis, Trackio
+#   data: FineWeb-Edu tokenised with datatrove to Megatron .bin/.idx shards, 7.4% sample
+#   the shipped run stops after 120 iterations (--exit-interval 120) as a setup check
+#
+# Where we differ, on purpose: see docs/phase1-moe.md. In short: no Slurm/Trackio wrapper
+# (pretrain_gpt.py is launched with torchrun), tokenizer directory is an argument (the handbook's
+# Llama-3.2 tokenizer is use-restricted), and checkpoint saving is on.
+
+[meta]
+phase = "phase1-moe"
+name = "handbook-moe-6p9b"
+upstream = "megatron-lm"
+
+[launch]
+entrypoint = "pretrain_gpt.py"
+gpus_per_node = 8
+
+[env]
+CUDA_DEVICE_MAX_CONNECTIONS = "1"
+NVTE_ALLOW_NONDETERMINISTIC_ALGO = "1"
+PYTORCH_CUDA_ALLOC_CONF = "expandable_segments:True"
+NCCL_NVLS_ENABLE = "0"
+
+[flags.parallelism]
+"--tensor-model-parallel-size" = 1
+"--pipeline-model-parallel-size" = 1
+"--context-parallel-size" = 1
+"--expert-model-parallel-size" = 8
+"--expert-tensor-parallel-size" = 1
+
+[flags.moe]
+"--num-experts" = 64
+"--moe-ffn-hidden-size" = 1024
+"--moe-router-topk" = 8
+"--moe-token-dispatcher-type" = "alltoall"
+"--moe-grouped-gemm" = true
+"--moe-router-load-balancing-type" = "aux_loss"
+"--moe-aux-loss-coeff" = "1e-3"
+"--moe-router-dtype" = "fp32"
+"--moe-per-layer-logging" = true
+
+[flags.model]
+"--use-mcore-models" = true
+"--use-flash-attn" = true
+"--disable-bias-linear" = true
+"--transformer-impl" = "transformer_engine"
+"--position-embedding-type" = "rope"
+"--rotary-percent" = "1.0"
+"--rotary-base" = 500000
+"--rotary-seq-len-interpolation-factor" = 1
+"--normalization" = "RMSNorm"
+"--swiglu" = true
+"--norm-epsilon" = "1e-5"
+"--num-layers" = 16
+"--hidden-size" = 2048
+"--ffn-hidden-size" = 8192
+"--num-attention-heads" = 32
+"--group-query-attention" = true
+"--num-query-groups" = 4
+"--kv-channels" = 64
+"--qk-layernorm" = true
+"--seq-length" = 4096
+"--max-position-embeddings" = 4096
+"--attention-dropout" = 0
+"--hidden-dropout" = 0
+"--init-method-std" = "0.02"
+
+[flags.data]
+# --tokenizer-model, --data-args-path and --data-cache-path are supplied at launch.
+"--tokenizer-type" = "HuggingFaceTokenizer"
+"--split" = "100,0,0"
+"--no-mmap-bin-files" = true
+"--num-workers" = 6
+"--dataloader-type" = "cyclic"
+"--reset-attention-mask" = true
+"--reset-position-ids" = true
+
+[flags.optimizer]
+"--use-distributed-optimizer" = true
+"--overlap-grad-reduce" = true
+"--overlap-param-gather" = true
+"--micro-batch-size" = 8
+"--global-batch-size" = 512
+"--train-samples" = 27732145
+"--optimizer" = "adam"
+"--adam-beta1" = "0.9"
+"--adam-beta2" = "0.95"
+"--clip-grad" = 1
+"--weight-decay" = "0.1"
+"--lr" = "5e-4"
+"--min-lr" = 0
+"--lr-warmup-samples" = 2000
+"--lr-decay-samples" = 27732145
+"--lr-decay-style" = "WSD"
+"--lr-wsd-decay-style" = "linear"
+"--lr-wsd-decay-samples" = 732145
+"--recompute-granularity" = "full"
+"--recompute-method" = "uniform"
+"--recompute-num-layers" = 1
+"--cross-entropy-loss-fusion" = true
+"--cross-entropy-fusion-impl" = "native"
+"--enable-experimental" = true
+
+[flags.logging]
+"--tensorboard-log-interval" = 1
+"--log-num-zeros-in-grad" = true
+"--log-throughput" = true
+"--log-memory-to-tensorboard" = true
+"--log-interval" = 1
+"--eval-interval" = 100000
+"--eval-iters" = 0
+"--manual-gc" = true
+"--manual-gc-interval" = 5
+"--distributed-timeout-minutes" = 60
+"--seed" = 1234
+"--bf16" = true
+
+# Added by Open Frontier Labs, not in the handbook run: checkpoints are published, so they are saved.
+# --save <dir> and --tensorboard-dir <dir>/tensorboard are supplied at launch.
+[flags.ofl]
+"--save-interval" = 1000
+
+# The handbook's own stop condition, applied only with `ofl moe launch --setup-check`.
+[setup_check]
+"--exit-interval" = 120

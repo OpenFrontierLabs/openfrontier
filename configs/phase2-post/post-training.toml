@@ -1,0 +1,35 @@
+# Phase 2: post-training stack. Status: documented, NOT BUILT. `ofl post launch` refuses to run.
+# This file records which upstream tool does which stage and where its entry point lives at the
+# pinned commit. It deliberately contains no flags: none have been written or tested, and we do
+# not put flags into a launcher that we have not checked against the pinned upstream.
+# Nothing has been post-trained and no base model exists yet.
+
+[meta]
+phase = "phase2-post"
+name = "post-training"
+upstream = "open-instruct"
+
+[[stage]]
+name = "sft"
+upstream = "open-instruct"
+entrypoint = "open_instruct/finetune.py"
+
+[[stage]]
+name = "dpo"
+upstream = "open-instruct"
+entrypoint = "open_instruct/dpo_tune_cache.py"
+
+[[stage]]
+name = "rlvr"
+upstream = "open-instruct"
+entrypoint = "open_instruct/grpo_fast.py"
+
+[[stage]]
+name = "async-rl"
+upstream = "prime-rl"
+entrypoint = "console script `rl` (prime_rl.entrypoints.rl:main)"
+
+[[stage]]
+name = "rl-environments"
+upstream = "verifiers"
+entrypoint = "console script `vf-run` (verifiers.v1.cli.run:main)"

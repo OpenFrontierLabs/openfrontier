@@ -1,0 +1,82 @@
+# Every upstream Open Frontier Labs builds on, pinned to an exact commit.
+# `ofl fetch <name>` clones the repo into .cache/upstreams/<name> and checks out `sha`.
+# Verified with `git ls-remote` / `gh api` on `verified`. Nothing is vendored.
+# To bump a pin: change `ref` and `sha` together, re-run `ofl run0 verify` / `ofl moe verify`.
+
+[olmo-core]
+repo = "https://github.com/allenai/OLMo-core"
+ref = "v3.0.0"
+sha = "a800c06edcec8e4652de2f80fe0ea572d689fcc3"
+license = "Apache-2.0"
+verified = "2026-11-12"
+used-by = "phase1-dense: ofl run0 launch (src/examples/llm/train.py); ofl smoke (olmo_core trainer on CPU)"
+note = "Latest release at verification. Default branch was 2289b819b8f709e37e3e042ebb019f411fb6b742 (2026-11-10), not used."
+
+[olmo-cookbook]
+repo = "https://github.com/allenai/olmo-cookbook"
+ref = "main"
+sha = "c226eb6a07ccef068c26379d9c90304fbaeea841"
+license = "Apache-2.0"
+verified = "2026-11-12"
+used-by = "phase1-dense: reference for 1B recipes and data mixes (src/cookbook/recipes); not executed by ofl"
+note = "No release tags exist; pinned to default-branch HEAD."
+
+[megatron-lm]
+repo = "https://github.com/NVIDIA/Megatron-LM"
+ref = "d6316eb45"
+sha = "d6316eb45bf1bfbb6f1f848c0b56e55166564d80"
+license = "NOASSERTION (GitHub could not classify; the repository ships its own LICENSE file, read it before use)"
+verified = "2026-11-12"
+used-by = "phase1-moe: ofl moe launch (pretrain_gpt.py). This is the commit the Hugging Face MoE handbook targets."
+note = "Default branch HEAD at verification was a7a6d2225700a8ee701453288894501d868c6bd4; not used, the handbook flags target d6316eb45."
+
+[open-instruct]
+repo = "https://github.com/allenai/open-instruct"
+ref = "v0.3.0"
+sha = "26de99604002d6a7b25a2c5f2ee880e388a21dca"
+license = "Apache-2.0"
+verified = "2026-11-12"
+used-by = "phase2-post: SFT (open_instruct/finetune.py), DPO (open_instruct/dpo_tune_cache.py), RLVR (open_instruct/grpo_fast.py). Launcher not built."
+
+[prime-rl]
+repo = "https://github.com/PrimeIntellect-ai/prime-rl"
+ref = "v0.10.0"
+sha = "9e15490dcab1d506ce3462e69b8aa5dde45c6b3a"
+license = "Apache-2.0"
+verified = "2026-11-12"
+used-by = "phase2-post: async RL (entry points `rl`, `sft`). Launcher not built."
+note = "Latest non-dev release. Default branch is on v0.10.1.dev205."
+
+[verifiers]
+repo = "https://github.com/PrimeIntellect-ai/verifiers"
+ref = "v0.4.1"
+sha = "540f40faab8c376b85c6afa2f872683b0ed1d4d1"
+license = "MIT"
+verified = "2026-11-12"
+used-by = "phase2-post: RL environments (entry point `vf-run`). Launcher not built."
+
+[prime-diloco]
+repo = "https://github.com/PrimeIntellect-ai/prime-diloco"
+ref = "main"
+sha = "de5b9317da5f57247f11abed2fca259076795460"
+license = "Apache-2.0"
+verified = "2026-11-12"
+used-by = "phase3-diloco: DiLoCo outer loop across islands (src/zeroband/train.py). Launcher not built."
+note = "Default-branch HEAD; last tag is v0.5 (Oct 2024). Does not run on CPU: train.py calls torch.cuda.set_device unconditionally and shards with a CUDA device mesh."
+
+[hf-moe-handbook]
+repo = "https://huggingface.co/spaces/huggingface/moe-blogpost"
+ref = "main"
+sha = "ef70726e6f8b99d74298a16a4894340f288a58c2"
+license = "see the Space; read-only reference, nothing copied"
+verified = "2026-11-12"
+used-by = "phase1-moe: source of the model/parallelism/optimizer flags in configs/phase1-moe/"
+note = "'The Ultimate MoE Training Handbook', Tazi, von Werra, Wolf, Hugging Face, 2026-11-05."
+
+[hf-moe-handbook-scripts]
+repo = "https://gist.github.com/nmntz/5de952d686f66d7bce5bce8cba9d7139"
+ref = "master"
+sha = "283029be10b078ac02cf334174d5620fbef8cc0f"
+license = "gist carries no licence file; read-only reference, nothing copied"
+verified = "2026-11-12"
+used-by = "phase1-moe: first_run.sbatch is the source of the flag values; tokenize_first_run.py is the tokenisation step"

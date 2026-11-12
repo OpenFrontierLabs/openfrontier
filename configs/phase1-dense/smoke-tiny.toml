@@ -1,0 +1,32 @@
+# CPU smoke and `ofl dev`: a real OLMo-core trainer run (pinned olmo-core, olmo2_14M model, ~1.1M
+# parameters) on a deterministic toy corpus generated locally. No download, no GPU.
+# The corpus is a noisy first-order Markov chain over `vocab` tokens (next = (5*x+3) mod vocab with
+# probability 1 - noise, else uniform), so a working trainer must drive the loss well below
+# ln(vocab). Smoke passes only if the loss really falls (see `loss_drop_ratio`).
+
+[meta]
+phase = "phase1-dense"
+name = "smoke-tiny"
+upstream = "olmo-core"
+
+[model]
+factory = "olmo2_14M"
+vocab = 64
+
+[data]
+sequence_length = 64
+sequences = 512
+noise = 0.1
+corpus_seed = 0
+
+[train]
+steps = 60
+dev_steps = 300
+batch_sequences = 16
+lr = 0.003
+warmup_steps = 5
+init_seed = 1
+
+[assert]
+# mean of the last 10 step losses must be below this fraction of the mean of the first 10
+loss_drop_ratio = 0.5

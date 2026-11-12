@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OpenFrontierLabs/openfrontier/ledger/schema.json",
+  "title": "Open Frontier Labs compute ledger",
+  "description": "Public record of who contributed compute to a run. One file covers one run over one period. Nodes are credited by GitHub handle; donated clusters are named as islands.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run", "period", "nodes"],
+  "properties": {
+    "schema_version": {
+      "description": "Version of this schema.",
+      "const": 1
+    },
+    "example": {
+      "description": "True only in files that are illustrative and contain no real data. Must be present exactly when the filename contains EXAMPLE.",
+      "const": true
+    },
+    "run": {
+      "description": "Run identifier, for example run0 or run1.",
+      "type": "string",
+      "pattern": "^run[0-9]+$"
+    },
+    "period": {
+      "description": "Inclusive UTC date range the figures cover.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "islands": {
+      "description": "Donated or pooled clusters, named as islands: synchronous inside, DiLoCo-style across.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/island" }
+    },
+    "nodes": {
+      "description": "One entry per node that took part in the run during the period.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    }
+  },
+  "$defs": {
+    "github_handle": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$"
+    },
+    "island": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "donor"],
+      "properties": {
+        "id": {
+          "description": "Stable identifier that nodes reference.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "name": {
+          "description": "Public display name of the island.",
+          "type": "string",
+          "minLength": 1
+        },
+        "donor": {
+          "description": "Who donated the cluster: a person, organisation or grant, as they wish to be named.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "github_handle",
+        "gpu_hours",
+        "tokens_processed",
+        "helpful_update_share"
+      ],
+      "properties": {
+        "node_id": {
+          "description": "Identifier unique within the file. One handle may run several nodes.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+        },
+        "github_handle": { "$ref": "#/$defs/github_handle" },
+        "island": {
+          "description": "Id of the island this node belongs to, if any. Must match an entry in islands.",
+          "type": "string"
+        },
+        "gpu_hours": {
+          "description": "GPU-hours the node was training in the period.",
+          "type": "number",
+          "minimum": 0
+        },
+        "tokens_processed": {
+          "description": "Training tokens the node processed in the period.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "helpful_update_share": {
+          "description": "Fraction of the node's submitted updates that lowered the loss, between 0 and 1.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+# Run 0: single-node dense baseline with the pinned OLMo-core (configs/upstreams.toml: olmo-core).
+# Status: scaffolding. Nothing has been trained with this config.
+#
+# Every key in [overrides] is passed verbatim as `--<key>=<value>` to the upstream script and was
+# accepted by that script's own `--dry-run` at the pinned commit (`ofl run0 verify` re-checks).
+# Model: TransformerConfig.olmo2_1B_v2. With the 100,352-row padded dolma2 vocabulary that is
+# 1.485B parameters in total, 1.279B without embeddings (computed with olmo_core, not measured).
+# Recipe values (batch, lr, weight decay, warmup, z-loss) follow src/scripts/train/OLMo2/OLMo2-1B.py
+# in the pinned OLMo-core, with plain AdamW (the example script has no SkipStepAdamW).
+
+[meta]
+phase = "phase1-dense"
+name = "run0"
+upstream = "olmo-core"
+
+[launch]
+entrypoint = "src/examples/llm/train.py"
+model_factory = "olmo2_1B_v2"
+sequence_length = 4096
+
+[data]
+source = "mix"                      # the Dolma 3 pre-tokenised mix, streamed from olmo-data.org
+manifest = "manifests/datasets.toml"
+
+[overrides]
+"dataset.paths" = "null"
+"dataset.mix" = "OLMo-mix-0625-official"
+"dataset.mix_base_dir" = "https://olmo-data.org"
+"dataset.tokenizer.vocab_size" = 100278
+"dataset.tokenizer.eos_token_id" = 100257
+"dataset.tokenizer.pad_token_id" = 100277
+"dataset.tokenizer.bos_token_id" = "null"
+"dataset.tokenizer.identifier" = "allenai/dolma2-tokenizer"
+"model.vocab_size" = 100352         # 100278 padded to a multiple of 128
+"init_seed" = 12536
+"data_loader.seed" = 0
+"data_loader.global_batch_size" = 2097152     # tokens: 512 sequences x 4096
+"train_module.rank_microbatch_size" = 32768   # tokens per GPU per micro-batch: 8 x 4096
+"train_module.optim.lr" = 0.0004
+"train_module.optim.weight_decay" = 0.033
+"train_module.optim.betas" = [0.9, 0.95]
+# `warmup`, not `warmup_steps`: the upstream accepts the deprecated key but its merged config keeps warmup=100.
+"train_module.scheduler.warmup" = 2000
+"train_module.z_loss_multiplier" = 0.00001
+"trainer.max_duration.unit" = "tokens"
+"trainer.max_duration.value" = 30000000000    # ~20 tokens per parameter; a budget choice, not a result
+"trainer.callbacks.checkpointer.save_interval" = 2000
+"trainer.callbacks.checkpointer.ephemeral_save_interval" = 500
+# The example script's default evaluators use the gpt2 tokenizer and c4; they do not match this tokenizer.
+"trainer.callbacks.lm_evaluator.enabled" = false
+"trainer.callbacks.downstream_evaluator.enabled" = false

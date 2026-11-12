@@ -1,0 +1,33 @@
+# `ofl smoke` (phase-3 algorithm check): a reference DiLoCo in plain PyTorch, NOT the pinned
+# prime-diloco. prime-diloco cannot run without CUDA (see configs/upstreams.toml), so this checks
+# the DiLoCo algorithm itself on CPU with torch.distributed/gloo and a tiny transformer:
+#   inner AdamW for `inner_steps`, pseudo-gradient = global params - local params, averaged across
+#   workers, outer SGD with Nesterov momentum on the global params (the outer optimiser upstream
+#   hard-codes: SGD, momentum 0.9, Nesterov), then local params reset to the global params.
+# Same noisy Markov toy corpus idea as configs/phase1-dense/smoke-tiny.toml, a different shard per worker.
+
+[run]
+workers = 2
+seed = 1234
+
+[model]
+vocab = 64
+sequence_length = 32
+d_model = 64
+n_layers = 2
+n_heads = 4
+
+[data]
+batch_size = 32
+noise = 0.1
+
+[diloco]
+outer_rounds = 8
+inner_steps = 25
+inner_lr = 0.003
+outer_lr = 0.7
+outer_momentum = 0.9
+
+[assert]
+# final held-out loss must be below this fraction of the initial held-out loss
+loss_drop_ratio = 0.5
