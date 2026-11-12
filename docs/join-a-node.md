@@ -10,9 +10,9 @@ Short version: **single-node phase 1 contributions come first. Joining a DiLoCo 
 | `make doctor` | report GPU, CUDA driver versus torch build, DNS and HTTPS latency to huggingface.co and github.com, disk, clock, tool versions. Works with no GPU. |
 | `make smoke` | CPU: a real tiny OLMo-core run, then the reference DiLoCo |
 | `make dev` | a longer, streaming version of the first smoke |
-| `uv run ofl run0 launch [--dry-run]` | the real OLMo-core command for a single node (phase 1 dense) |
-| `uv run ofl moe launch [--dry-run]` | the real Megatron-LM command for a single 8-GPU node (phase 1 MoE) |
-| `uv run ofl run0 verify`, `uv run ofl moe verify` | check the launchers against their pinned upstreams |
+| `cargo run -- run0 launch [--dry-run]` | the real OLMo-core command for a single node (phase 1 dense) |
+| `cargo run -- moe launch [--dry-run]` | the real Megatron-LM command for a single 8-GPU node (phase 1 MoE) |
+| `cargo run -- run0 verify`, `cargo run -- moe verify` | check the launchers against their pinned upstreams |
 | `make deploy ENV=dry-run` | list what would be published; publishing is not implemented |
 
 `ofl doctor` exit status: 0 unless a hard failure. Hard failures are Python older than 3.11, torch not importable, less than 2 GiB free next to the repo, and github.com or huggingface.co unreachable. Everything else (no GPU, CPU-only torch, low disk, clock skew over 30 s) is a warning or information. It measures round-trip latency only; **it does not measure bandwidth**, and it does not tell you which run you qualify for, because no run defines thresholds yet.

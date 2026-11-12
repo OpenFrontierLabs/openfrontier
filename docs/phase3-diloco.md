@@ -25,7 +25,7 @@ We tried. In a scratch environment with the upstream's locked dependencies, `tra
 
 ## What `make smoke` checks instead
 
-[`src/ofl/smoke/diloco_ref.py`](../src/ofl/smoke/diloco_ref.py) is a small **reference implementation of the DiLoCo algorithm in plain PyTorch**. It is not prime-diloco and tests nothing about it. Two worker processes on `torch.distributed` (gloo) each run inner AdamW for 25 steps on their own data shard, average the pseudo-gradient (global weights minus local weights), take an outer SGD step with Nesterov momentum 0.9 on the global weights, and reset to them, for 8 outer rounds on a toy transformer. The smoke fails unless the held-out loss falls to under half its start, the workers' weights genuinely diverge during the inner steps, and they are bit-identical after every outer sync. With the outer learning rate set to 0 (a negative control) it fails, as it should.
+[`smoke/smoke/diloco_ref.py`](../smoke/smoke/diloco_ref.py) is a small **reference implementation of the DiLoCo algorithm in plain PyTorch**. It is not prime-diloco and tests nothing about it. Two worker processes on `torch.distributed` (gloo) each run inner AdamW for 25 steps on their own data shard, average the pseudo-gradient (global weights minus local weights), take an outer SGD step with Nesterov momentum 0.9 on the global weights, and reset to them, for 8 outer rounds on a toy transformer. The smoke fails unless the held-out loss falls to under half its start, the workers' weights genuinely diverge during the inner steps, and they are bit-identical after every outer sync. With the outer learning rate set to 0 (a negative control) it fails, as it should.
 
 ## Hybrid islands, as intended
 

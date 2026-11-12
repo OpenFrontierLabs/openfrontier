@@ -8,7 +8,7 @@ SGD with Nesterov momentum on the global weights) with torch.distributed/gloo an
   2. workers genuinely diverge during the inner steps (otherwise 3 would be vacuous),
   3. after every outer sync all workers hold bit-identical weights.
 
-Run as `python -m ofl.smoke.diloco_ref [--outer-lr X]`. Exits non-zero unless all three hold.
+Run as `python -m smoke.diloco_ref [--outer-lr X]`. Exits non-zero unless all three hold.
 """
 
 from __future__ import annotations
@@ -29,9 +29,8 @@ import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch import nn
 
-from ofl.configs import SmokeDiloco, load_smoke_diloco
-from ofl.repo import OflError, find_root
-from ofl.smoke.toy import generate_tokens
+from smoke.configs import SmokeDiloco, SmokeError, find_root, load_smoke_diloco
+from smoke.toy import generate_tokens
 
 
 class TinyLM(nn.Module):
@@ -197,17 +196,17 @@ def run(cfg: SmokeDiloco) -> dict[str, Any]:
         try:
             loaded: dict[str, Any] = json.loads(Path(result_file).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise OflError(f"worker 0 produced no readable result: {exc}") from exc
+            raise SmokeError(f"worker 0 produced no readable result: {exc}") from exc
         return loaded
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m ofl.smoke.diloco_ref")
+    parser = argparse.ArgumentParser(prog="python -m smoke.diloco_ref")
     parser.add_argument("--outer-lr", type=float, help="override [diloco].outer_lr")
     args = parser.parse_args(argv)
     try:
         cfg = load_smoke_diloco(find_root())
-    except OflError as exc:
+    except SmokeError as exc:
         print(exc, file=sys.stderr)
         return exc.code
     if args.outer_lr is not None:

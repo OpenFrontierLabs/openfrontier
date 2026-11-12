@@ -1,6 +1,6 @@
 """Phase 1 smoke: a real, tiny OLMo-core training run on CPU (the pinned olmo-core itself).
 
-Run as `python -m ofl.smoke.olmo_tiny [--steps N]`. Exits non-zero unless the trainer's own
+Run as `python -m smoke.olmo_tiny [--steps N]`. Exits non-zero unless the trainer's own
 cross-entropy loss falls and the trainer wrote a checkpoint.
 """
 
@@ -12,9 +12,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from ofl.configs import SmokeTiny, load_smoke_tiny
-from ofl.repo import OflError, find_root
-from ofl.smoke.toy import drop_ratio, generate_tokens
+from smoke.configs import SmokeError, SmokeTiny, find_root, load_smoke_tiny
+from smoke.toy import drop_ratio, generate_tokens
 
 
 def evaluate(losses: list[float], checkpoint_dirs: list[str], cfg: SmokeTiny) -> list[str]:
@@ -110,13 +109,13 @@ def run(cfg: SmokeTiny, steps: int, workdir: Path) -> tuple[list[float], list[st
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m ofl.smoke.olmo_tiny")
+    parser = argparse.ArgumentParser(prog="python -m smoke.olmo_tiny")
     parser.add_argument("--steps", type=int, help="override [train].steps")
     parser.add_argument("--workdir", type=Path, help="keep artefacts here instead of a temp dir")
     args = parser.parse_args(argv)
     try:
         cfg = load_smoke_tiny(find_root())
-    except OflError as exc:
+    except SmokeError as exc:
         print(exc, file=sys.stderr)
         return exc.code
     steps = args.steps or cfg.steps

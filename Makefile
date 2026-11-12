@@ -1,9 +1,9 @@
-# Every target is a one-line wrapper; behaviour lives in `ofl` (src/ofl/).
+# Every target is a one-line wrapper; behaviour lives in `ofl` (src/, Rust).
 ENV ?= dry-run
 
 .PHONY: setup dev check test fix build deploy smoke doctor clean help
 setup dev check test fix build smoke doctor clean help:
-	@uv run ofl $@
+	@cargo run -q -- $@
 
 deploy:
-	@uv run ofl deploy --env $(ENV)
+	@cargo run -q -- deploy --env $(ENV)
