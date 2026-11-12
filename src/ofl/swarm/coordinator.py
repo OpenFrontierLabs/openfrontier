@@ -222,6 +222,12 @@ class Coordinator:
             self.pending[node_id] = (delta, meta)
             if len(self.pending) < len(self.members):
                 return
+        # The last push of a round answers at once; the outer step, eval and (after the last
+        # round) sampling run on their own thread so no request waits on them.
+        threading.Thread(target=self._aggregate, args=(rnd,), daemon=True).start()
+
+    def _aggregate(self, rnd: int) -> None:
+        with self.lock:
             deltas = [self.pending[n][0] for n in self.members]
             self.global_w.grad = torch.stack(deltas).mean(0)
             self.outer.step()
@@ -248,22 +254,30 @@ class Coordinator:
                 f"round {rnd:>3} val_loss {loss:.4f} hashes {'agree' if agree else 'DIFFER'}",
                 flush=True,
             )
-            self.round += 1
-            if self.round == self.cfg.rounds:
-                self._finish()
+            last = rnd + 1 == self.cfg.rounds
+            if not last:
+                self.round += 1
             self._persist()
+        if last:
+            self._finish()
 
     def _finish(self) -> None:
-        self.wall = time.time() - self.started
-        m.set_flat(self.model, self.global_w.detach())
+        """Sample from the final weights, then open the run's end to the nodes."""
+        wall = time.time() - self.started
+        sampler = m.CharGPT(self.mcfg)
+        m.set_flat(sampler, self.global_w.detach())
         stoi = {c: i for i, c in enumerate(self.chars)}
         prompt = "ROMEO:" if set("ROMEO:") <= stoi.keys() else self.text[:6]
-        ids = m.sample(self.model, [stoi[c] for c in prompt], 600, seed=self.cfg.seed)
-        self.sample = "".join(self.chars[i] for i in ids)
-        (self.run_dir / "sample.txt").write_text(self.sample + "\n", encoding="utf-8")
-        (self.run_dir / "weights.f32").write_bytes(self.weights)
-        self.state = "done"
-        self._write_receipt()
+        ids = m.sample(sampler, [stoi[c] for c in prompt], 600, seed=self.cfg.seed)
+        with self.lock:
+            self.wall = wall
+            self.sample = "".join(self.chars[i] for i in ids)
+            (self.run_dir / "sample.txt").write_text(self.sample + "\n", encoding="utf-8")
+            (self.run_dir / "weights.f32").write_bytes(self.weights)
+            self.round = self.cfg.rounds
+            self.state = "done"
+            self._write_receipt()
+            self._persist()
 
     def final(self, node_id: str, digest: str) -> None:
         with self.lock:
