@@ -34,11 +34,38 @@ For the phase 1 MoE track the handbook's setup is one node with 8 GPUs of about 
 2. Run a phase 1 launcher on a GPU node ([run0.md](run0.md), [phase1-moe.md](phase1-moe.md)), and report what happened as an issue or pull request, including failures and the config you used.
 3. Offer compute or a cluster: open an issue.
 
+## Swarm proof of concept: two commands
+
+A real but small multi-machine DiLoCo run exists as a **proof of concept**. It is not prime-diloco and not the planned mesh: one coordinator holds the global weights, nodes train a tiny char-level GPT (4.8M parameters) on tiny-shakespeare, and there is **no authentication, no ledger and no contribution scoring**. The network is Tailscale for now (anyone on the tailnet can join or push updates); a rust-libp2p transport comes later.
+
+On the coordinator machine (binds its Tailscale IPv4, port 8470; state under `~/.ofl/swarm/`):
+
+```sh
+make setup   # once: the Python smoke environment
+cargo run -q -- swarm coordinator --nodes 2 --rounds 30
+```
+
+On each node (detects `cuda`, then `mps`, then `cpu`):
+
+```sh
+cargo run -q -- node join --coordinator http://<coordinator-tailscale-ip>:8470
+```
+
+The swarm is Python (`smoke/smoke/swarm`); the Rust `ofl` forwards `swarm` and `node` to it in the `smoke/` environment, which pins CPU-only torch on Linux. A CUDA node needs no Rust: in its own environment with a CUDA torch build, run `pip install --no-deps -e smoke/` in this clone, then `python -m smoke.swarm node join --coordinator …` (same arguments as `ofl node join`). On macOS the `smoke/` environment's torch already has MPS.
+
+Each round every node pulls the global weights (checked by SHA-256), runs 50 inner AdamW steps on its own contiguous shard, and pushes its pseudo-gradient; the coordinator averages them in rank order, takes one SGD step with Nesterov momentum 0.9 (outer learning rate 0.7) and evaluates the held-out loss. Rounds are synchronous: one slow node slows the run, and a node that leaves stalls it. Nodes report the hash of the weights they actually loaded, so every round records whether all nodes held identical weights.
+
+`cargo run -q -- swarm status` prints the registry (device, GPU, memory, torch, last heartbeat) and the per-round loss and hash agreement. A run directory `~/.ofl/swarm/runs/<run-id>/` holds `log.jsonl`, `receipt.json` (nodes, rounds, losses, wall time, final weights hash, every node's final hash, git SHA), `sample.txt` and `weights.f32`. The HTTP interface is described in [`smoke/smoke/swarm/openapi.yaml`](../smoke/smoke/swarm/openapi.yaml). `smoke/tests/test_swarm.py` runs the same protocol with two CPU nodes on localhost.
+
+### Show the swarm on the website
+
+`ofl swarm coordinator --report-url https://openfrontier-labs.com` reports nodes, the run and each round to the site, which draws them on [/dashboard](https://openfrontier-labs.com/dashboard) and, matched by GitHub handle, in the member console. The token is read from `OFL_SWARM_TOKEN` or `~/.ofl/token`. Reports go through a background queue: an unreachable site is printed and dropped, and never stalls training. `ofl node join --github <handle>` attaches a node to a member (default: your `gh` login). `ofl swarm report --run-dir ~/.ofl/swarm/runs/<run-id> --github <handle> --report-url …` sends a finished run from its receipt and log.
+
 ## Planned, not built
 
 The plan describes this flow. **None of these commands exist.**
 
 - `pipx install ofl`: `ofl` is not published to PyPI or anywhere else; use a clone.
-- `ofl join run1`: sign in with a GitHub identity and join an elastic mesh that catches you up from a live checkpoint. There is no mesh, no coordinator and no node agent.
+- `ofl join run1`: sign in with a GitHub identity and join an elastic mesh that catches you up from a live checkpoint. Only the swarm proof of concept above exists: no identity, no elasticity, no catch-up for late joiners.
 - Automatic dropping of nodes whose updates hurt the loss, and scoring that fills `helpful_update_share` in the [ledger](../ledger/README.md).
 - Rollout nodes for distributed RL verified with TOPLOC.

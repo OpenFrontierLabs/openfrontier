@@ -64,14 +64,24 @@ pub struct HttpsProbe {
 }
 
 /// Torch build facts.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct TorchInfo {
     /// torch.__version__.
     pub version: String,
     /// torch.version.cuda, None for CPU builds.
     pub cuda_build: Option<String>,
-    /// `torch.cuda.is_available()`.
+    /// `torch.cuda.is_available()`; true on `ROCm` builds too.
     pub cuda_available: bool,
+    /// `torch.version.hip`, None unless this is a `ROCm` build.
+    pub hip_build: Option<String>,
+    /// `torch.backends.mps.is_available()`.
+    pub mps_available: bool,
+    /// Names of the `torch.cuda` devices (NVIDIA or `ROCm`).
+    pub devices: Vec<String>,
+    /// Total memory in bytes per `torch.cuda` device, None when torch does not expose it.
+    pub device_memory_bytes: Vec<Option<u64>>,
+    /// `torch.mps.recommended_max_memory()` in bytes, when available.
+    pub mps_recommended_max_bytes: Option<u64>,
 }
 
 /// A helper-command probe: (exit code, trimmed stdout).
@@ -202,7 +212,27 @@ fn toolchain_rows(host: &Host) -> Vec<Row> {
     rows
 }
 
-/// GPU and CUDA rows from nvidia-smi and torch.
+/// One report row.
+fn row(status: &'static str, name: &str, detail: impl Into<String>) -> Row {
+    Row { status, name: name.to_owned(), detail: detail.into() }
+}
+
+/// Memory as GiB text, or a note when torch does not expose it.
+fn format_gib(bytes: Option<u64>) -> String {
+    match bytes {
+        Some(b) if b > 0 => format!("{:.1} GiB", gib(b)),
+        _ => "memory not exposed by torch".to_owned(),
+    }
+}
+
+/// Bytes to GiB for display.
+#[expect(clippy::cast_precision_loss, reason = "device memory is far below 2^52 bytes")]
+// ubs:ignore[rust.casts.as-casts] -- byte count to f64 for a GiB display value; far below 2^52.
+fn gib(bytes: u64) -> f64 {
+    bytes as f64 / GIB
+}
+
+/// GPU, CUDA, `ROCm` and MPS rows: nvidia-smi first, then what torch sees (`ROCm`, MPS).
 fn gpu_rows(host: &Host, torch_info: Option<&TorchInfo>) -> Vec<Row> {
     let argv: Vec<String> =
         ["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"]
@@ -210,31 +240,96 @@ fn gpu_rows(host: &Host, torch_info: Option<&TorchInfo>) -> Vec<Row> {
             .map(|s| (*s).to_owned())
             .collect();
     let (rc, out) = (host.run)(&argv);
-    if rc != 0 || out.is_empty() {
-        return vec![
-            Row {
-                status: "warn",
-                name: "gpu".to_owned(),
-                detail: "no GPU: CPU smoke only (nvidia-smi not found or reported none)".to_owned(),
-            },
-            Row { status: "info", name: "cuda".to_owned(), detail: "n/a without a GPU".to_owned() },
-        ];
+    if rc == 0 && !out.is_empty() {
+        return nvidia_rows(&out, torch_info);
     }
+    match torch_info {
+        Some(info) if info.hip_build.is_some() => rocm_rows(info),
+        Some(info) if info.mps_available => mps_rows(host, info),
+        _ => vec![
+            row("warn", "gpu", "no GPU: CPU smoke only (no CUDA, ROCm or MPS device detected)"),
+            row("info", "cuda", "n/a without a GPU"),
+            row("info", "rocm", NO_ROCM),
+            row("info", "mps", NO_MPS),
+        ],
+    }
+}
+
+/// Detail for the `ROCm` row when there is no `ROCm` device.
+const NO_ROCM: &str = "not present (no ROCm device)";
+/// Detail for the MPS row when there is no Apple MPS device.
+const NO_MPS: &str = "not present (Apple MPS not available)";
+
+/// Rows for a machine where nvidia-smi reports GPUs.
+fn nvidia_rows(out: &str, torch_info: Option<&TorchInfo>) -> Vec<Row> {
     let lines: Vec<&str> = out.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
     let first = lines.first().copied().unwrap_or("");
     let name = first.split(',').next().unwrap_or("").trim();
-    let mut rows = vec![Row {
-        status: "ok",
-        name: "gpu".to_owned(),
-        detail: format!("{} x {name}", lines.len()),
-    }];
+    let mut rows = vec![row("ok", "gpu", format!("{} x {name} (backend: cuda)", lines.len()))];
     for (i, line) in lines.iter().enumerate() {
         // ubs:ignore[rust.perf.string-alloc-in-loop] -- one report row per GPU; building the doctor table, not a hot path.
-        rows.push(Row { status: "info", name: format!("gpu {i}"), detail: (*line).to_owned() });
+        rows.push(row("info", &format!("gpu {i}"), *line));
     }
     let driver = first.split(',').next_back().unwrap_or("").trim();
     rows.push(cuda_row(driver, torch_info));
+    rows.push(row("info", "rocm", NO_ROCM));
+    rows.push(row("info", "mps", NO_MPS));
     rows
+}
+
+/// Rows for a `ROCm` torch build: usable devices, or a warning when it finds none.
+fn rocm_rows(info: &TorchInfo) -> Vec<Row> {
+    let hip = info.hip_build.as_deref().unwrap_or("");
+    let Some(first) = info.devices.first().filter(|_| info.cuda_available) else {
+        return vec![
+            row("warn", "gpu", "no GPU: CPU smoke only (ROCm torch build found no usable device)"),
+            row("info", "cuda", "n/a (ROCm build)"),
+            row(
+                "warn",
+                "rocm",
+                format!("torch {} built for ROCm {hip}, NOT usable from torch", info.version),
+            ),
+            row("info", "mps", NO_MPS),
+        ];
+    };
+    let memory = |i: usize| format_gib(info.device_memory_bytes.get(i).copied().flatten());
+    let count = info.devices.len();
+    let mut rows =
+        vec![row("ok", "gpu", format!("{count} x {first} ({}, backend: rocm)", memory(0)))];
+    for (i, device) in info.devices.iter().enumerate() {
+        // ubs:ignore[rust.perf.string-alloc-in-loop] -- one report row per GPU; building the doctor table, not a hot path.
+        rows.push(row("info", &format!("gpu {i}"), format!("{device}, {}, ROCm {hip}", memory(i))));
+    }
+    rows.push(row("info", "cuda", "n/a (ROCm build)"));
+    rows.push(row(
+        "ok",
+        "rocm",
+        format!("torch {} built for ROCm {hip}, usable ({count} device(s))", info.version),
+    ));
+    rows.push(row("info", "mps", NO_MPS));
+    rows
+}
+
+/// Rows for Apple Silicon with a usable MPS backend.
+fn mps_rows(host: &Host, info: &TorchInfo) -> Vec<Row> {
+    let argv: Vec<String> =
+        ["sysctl", "-n", "machdep.cpu.brand_string"].iter().map(|s| (*s).to_owned()).collect();
+    let (rc, out) = (host.run)(&argv);
+    let chip = if rc == 0 && !out.trim().is_empty() { out.trim() } else { "Apple Silicon" };
+    let memory = match info.mps_recommended_max_bytes {
+        Some(b) if b > 0 => format!("{} recommended max", format_gib(Some(b))),
+        _ => "unified memory (size not exposed by torch)".to_owned(),
+    };
+    vec![
+        row("ok", "gpu", format!("1 x {chip} ({memory}, backend: mps)")),
+        row("info", "cuda", "n/a (Apple MPS)"),
+        row("info", "rocm", NO_ROCM),
+        row(
+            "ok",
+            "mps",
+            format!("Apple MPS usable from torch {} ({chip}, {memory})", info.version),
+        ),
+    ]
 }
 
 /// The CUDA row comparing the driver with this environment's torch build.
@@ -456,21 +551,62 @@ fn parse_http_date(text: &str) -> Option<i64> {
     i64::try_from(secs).ok()
 }
 
+/// Probe run in the smoke interpreter: torch version, CUDA/`ROCm` devices and MPS, as one JSON object.
+const TORCH_PROBE: &str = r#"
+import json, torch
+cuda = bool(torch.cuda.is_available())
+count = int(torch.cuda.device_count()) if cuda else 0
+def memory(i):
+    try:
+        return int(torch.cuda.get_device_properties(i).total_memory)
+    except RuntimeError:
+        return None
+mps = getattr(torch.backends, "mps", None)
+mps_ok = bool(mps is not None and mps.is_available())
+mps_max = None
+if mps_ok and hasattr(torch.mps, "recommended_max_memory"):
+    try:
+        mps_max = int(torch.mps.recommended_max_memory())
+    except RuntimeError:
+        pass
+print(json.dumps({
+    "version": torch.__version__,
+    "cuda": torch.version.cuda,
+    "hip": getattr(torch.version, "hip", None),
+    "cuda_available": cuda,
+    "devices": [torch.cuda.get_device_name(i) for i in range(count)],
+    "memory": [memory(i) for i in range(count)],
+    "mps_available": mps_ok,
+    "mps_max": mps_max,
+}))
+"#;
+
 /// Torch build facts from the smoke interpreter.
 fn torch_info(python: &str) -> Option<TorchInfo> {
-    let script = "import torch, json; print(json.dumps([torch.__version__, torch.version.cuda, \
-                  bool(torch.cuda.is_available())]))";
-    let argv = vec![python.to_owned(), "-c".to_owned(), script.to_owned()];
+    let argv = vec![python.to_owned(), "-c".to_owned(), TORCH_PROBE.to_owned()];
     let (rc, out) = run_captured(&argv, TORCH_TIMEOUT);
     if rc != 0 {
         return None;
     }
-    let parsed: serde_json::Value = serde_json::from_str(&out).ok()?;
-    let arr = parsed.as_array()?;
+    parse_torch_info(&out)
+}
+
+/// Parse the [`TORCH_PROBE`] output.
+#[must_use]
+pub fn parse_torch_info(out: &str) -> Option<TorchInfo> {
+    let v: serde_json::Value = serde_json::from_str(out).ok()?;
+    let text = |key: &str| v.get(key).and_then(|x| x.as_str()).map(str::to_owned);
+    let flag = |key: &str| v.get(key).and_then(serde_json::Value::as_bool).unwrap_or(false);
+    let list = |key: &str| v.get(key).and_then(|x| x.as_array()).cloned().unwrap_or_default();
     Some(TorchInfo {
-        version: arr.first()?.as_str()?.to_owned(),
-        cuda_build: arr.get(1).and_then(|v| v.as_str()).map(str::to_owned),
-        cuda_available: arr.get(2).and_then(serde_json::Value::as_bool).unwrap_or(false),
+        version: text("version")?,
+        cuda_build: text("cuda"),
+        cuda_available: flag("cuda_available"),
+        hip_build: text("hip"),
+        mps_available: flag("mps_available"),
+        devices: list("devices").iter().filter_map(|x| x.as_str().map(str::to_owned)).collect(),
+        device_memory_bytes: list("memory").iter().map(serde_json::Value::as_u64).collect(),
+        mps_recommended_max_bytes: v.get("mps_max").and_then(serde_json::Value::as_u64),
     })
 }
 

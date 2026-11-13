@@ -7,14 +7,14 @@ use clap::{CommandFactory, Parser, Subcommand};
 
 use crate::error::{OflError, Result};
 use crate::repo::find_root;
-use crate::{deploy, doctor, moe, phases, run0, tasks, upstreams};
+use crate::{deploy, doctor, moe, phases, run0, swarm, tasks, upstreams};
 
 /// Make-target descriptions, in `make help` order.
 pub const TARGETS: [(&str, &str); 11] = [
     ("setup", "uv sync the Python smoke environment; cargo builds on demand"),
     ("dev", "longer, streaming CPU run of the real OLMo-core trainer (tiny model)"),
     ("check", "cargo fmt --check, clippy, ledger schema + example, configs and pins"),
-    ("test", "cargo test"),
+    ("test", "cargo test, then the swarm pytest in smoke/"),
     ("fix", "cargo clippy --fix and cargo fmt"),
     ("build", "cargo build: the ofl binary into target/"),
     ("deploy", "ENV=dry-run lists what would be published; real publishing is not implemented"),
@@ -41,7 +41,7 @@ enum Command {
     Dev,
     /// Cargo fmt --check, clippy, ledger schema + example, configs and pins.
     Check,
-    /// Cargo test.
+    /// Cargo test, then the swarm pytest in smoke/.
     Test,
     /// Cargo clippy --fix and cargo fmt.
     Fix,
@@ -87,6 +87,18 @@ enum Command {
     Diloco {
         #[command(subcommand)]
         action: UnbuiltAction,
+    },
+    /// Swarm `PoC`: coordinator, status, report (arguments go to the Python swarm; try `swarm --help`).
+    #[command(disable_help_flag = true)]
+    Swarm {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Swarm `PoC`: join a coordinator as a training node (arguments go to the Python swarm).
+    #[command(disable_help_flag = true)]
+    Node {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
 }
 
@@ -213,6 +225,8 @@ fn dispatch(command: Command) -> Result<i32> {
         Command::Moe { action } => dispatch_moe(action),
         Command::Post { action: UnbuiltAction::Launch } => phases::not_built("post"),
         Command::Diloco { action: UnbuiltAction::Launch } => phases::not_built("diloco"),
+        Command::Swarm { args } => swarm::forward("swarm", &args),
+        Command::Node { args } => swarm::forward("node", &args),
     }
 }
 
@@ -286,6 +300,10 @@ fn help() -> i32 {
     );
     println!("  post launch         phase 2: not built");
     println!("  diloco launch       phase 3: not built");
+    println!("  swarm coordinator   swarm PoC: node registry + DiLoCo outer steps over HTTP");
+    println!("  swarm status        swarm PoC: registry and run progress");
+    println!("  swarm report        swarm PoC: send a finished run to the website");
+    println!("  node join           swarm PoC: train as a node of a coordinator's run");
     0
 }
 

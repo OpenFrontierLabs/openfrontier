@@ -5,9 +5,17 @@ description = "Open Frontier Labs CPU training smokes: the pinned OLMo-core trai
 requires-python = ">=3.11"
 dependencies = [
     "torch>=2.10,<2.14",
+    "certifi",
     # Pinned to the commit behind release v3.0.0 (configs/upstreams.toml: olmo-core).
     "ai2-olmo-core",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
 
 [build-system]
 requires = ["hatchling"]

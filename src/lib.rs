@@ -14,5 +14,6 @@ pub mod moe;
 pub mod phases;
 pub mod repo;
 pub mod run0;
+pub mod swarm;
 pub mod tasks;
 pub mod upstreams;

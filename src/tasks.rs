@@ -66,16 +66,22 @@ pub fn build() -> Result<i32> {
     run(&spec, None)
 }
 
-/// Run the Rust test suite.
+/// Run the Rust test suite, then the swarm tests in the Python smoke environment.
 ///
 /// # Errors
 ///
-/// [`OflError`] when cargo fails to start.
+/// [`OflError`] when cargo or the smoke environment fails to start.
 pub fn test() -> Result<i32> {
     let root = find_root(None)?;
     let argv = vec!["cargo".to_owned(), "test".to_owned()];
     let spec = RunSpec { argv: &argv, cwd: Some(&root), env: None };
-    run(&spec, None)
+    let rust = run(&spec, None)?;
+    ensure_smoke_env(&root)?;
+    let smoke_dir = root.join("smoke");
+    let python = crate::repo::smoke_python(&root);
+    let argv = crate::repo::python_module(&python, "pytest", &[]);
+    let spec = RunSpec { argv: &argv, cwd: Some(&smoke_dir), env: None };
+    Ok(rust | run(&spec, None)?)
 }
 
 /// Auto-fix lint and format.
@@ -205,7 +211,7 @@ fn sweep(dir: &Path, removed: &mut Vec<PathBuf>) -> Result<()> {
 
 /// Ensure the Python smoke environment exists, syncing it from `smoke/uv.lock`
 /// on first use so `ofl smoke` works right after clone.
-fn ensure_smoke_env(root: &Path) -> Result<()> {
+pub(crate) fn ensure_smoke_env(root: &Path) -> Result<()> {
     if root.join("smoke/.venv/bin/python").exists() {
         return Ok(());
     }

@@ -1,9 +1,10 @@
 #![cfg(test)]
+#![expect(clippy::unwrap_used, reason = "test assertions panic on failure")]
 //! Doctor report tests with fake machine probes.
 
 use std::path::Path;
 
-use ofl::doctor::{Host, HttpsProbe, Row, TorchInfo, collect, exit_code};
+use ofl::doctor::{Host, HttpsProbe, Row, TorchInfo, collect, exit_code, parse_torch_info};
 
 /// A fixed "now" for clock-skew tests: 2026-11-12T12:00:00Z.
 const NOW: i64 = 1_794_484_800;
@@ -28,11 +29,7 @@ fn fake_host() -> Host {
             error: String::new(),
         }),
         torch: Box::new(|| {
-            Some(TorchInfo {
-                version: "2.13.0+cpu".to_owned(),
-                cuda_build: None,
-                cuda_available: false,
-            })
+            Some(TorchInfo { version: "2.13.0+cpu".to_owned(), ..TorchInfo::default() })
         }),
         version: Box::new(|_: &str| Some("1.0".to_owned())),
         now: Box::new(|| NOW),
@@ -49,7 +46,113 @@ fn no_gpu_machine_warns_and_exits_zero() {
     let table = by_name(&rows);
     assert_eq!(table["gpu"].status, "warn");
     assert!(table["gpu"].detail.contains("CPU smoke only"));
+    for name in ["cuda", "rocm", "mps"] {
+        assert_eq!(table[name].status, "info", "{name}");
+    }
+    assert!(table["rocm"].detail.contains("not present"));
+    assert!(table["mps"].detail.contains("not present"));
     assert_eq!(exit_code(&rows), 0);
+}
+
+#[test]
+fn mps_device_is_reported_when_available() {
+    let mut host = fake_host();
+    host.run = Box::new(|argv: &[String]| match argv.first().map(String::as_str) {
+        Some("sysctl") => (0, "Apple M3 Max".to_owned()),
+        Some("uv") => (0, "uv 0.0.0".to_owned()),
+        _ => (127, String::new()),
+    });
+    host.torch = Box::new(|| {
+        Some(TorchInfo {
+            version: "2.13.0".to_owned(),
+            mps_available: true,
+            mps_recommended_max_bytes: Some(48 * GIB),
+            ..TorchInfo::default()
+        })
+    });
+    let rows = collect(&host, Path::new("."));
+    let table = by_name(&rows);
+    assert_eq!(table["gpu"].status, "ok");
+    assert!(table["gpu"].detail.contains("Apple M3 Max"));
+    assert!(table["gpu"].detail.contains("48.0 GiB recommended max"));
+    assert!(table["gpu"].detail.contains("backend: mps"));
+    assert_eq!(table["mps"].status, "ok");
+    assert!(table["mps"].detail.contains("Apple MPS usable"));
+    assert_eq!(table["cuda"].status, "info");
+    assert_eq!(table["rocm"].status, "info");
+    assert_eq!(exit_code(&rows), 0);
+}
+
+#[test]
+fn rocm_device_is_reported_when_available() {
+    let mut host = fake_host();
+    host.torch = Box::new(|| {
+        Some(TorchInfo {
+            version: "2.13.0+rocm6.2".to_owned(),
+            cuda_available: true,
+            hip_build: Some("6.2.41133".to_owned()),
+            devices: vec!["AMD Instinct MI300X".to_owned()],
+            device_memory_bytes: vec![Some(192 * GIB)],
+            ..TorchInfo::default()
+        })
+    });
+    let rows = collect(&host, Path::new("."));
+    let table = by_name(&rows);
+    assert_eq!(table["gpu"].status, "ok");
+    assert!(table["gpu"].detail.contains("1 x AMD Instinct MI300X"));
+    assert!(table["gpu"].detail.contains("192.0 GiB"));
+    assert!(table["gpu"].detail.contains("backend: rocm"));
+    assert!(table["gpu 0"].detail.contains("ROCm 6.2.41133"));
+    assert_eq!(table["rocm"].status, "ok");
+    assert!(table["rocm"].detail.contains("usable"));
+    assert_eq!(table["cuda"].status, "info");
+    assert_eq!(table["mps"].status, "info");
+    assert_eq!(exit_code(&rows), 0);
+}
+
+#[test]
+fn rocm_build_without_a_usable_device_warns() {
+    let mut host = fake_host();
+    host.torch = Box::new(|| {
+        Some(TorchInfo {
+            version: "2.13.0+rocm6.2".to_owned(),
+            hip_build: Some("6.2.41133".to_owned()),
+            ..TorchInfo::default()
+        })
+    });
+    let rows = collect(&host, Path::new("."));
+    let table = by_name(&rows);
+    assert_eq!(table["gpu"].status, "warn");
+    assert_eq!(table["rocm"].status, "warn");
+    assert!(table["rocm"].detail.contains("NOT usable"));
+    assert_eq!(exit_code(&rows), 0);
+}
+
+#[test]
+fn torch_probe_output_parses_for_cuda_rocm_mps_and_cpu() {
+    let cpu = r#"{"version":"2.13.0+cpu","cuda":null,"hip":null,"cuda_available":false,
+        "devices":[],"memory":[],"mps_available":false,"mps_max":null}"#;
+    let info = parse_torch_info(cpu).unwrap();
+    assert!(!info.cuda_available && !info.mps_available && info.hip_build.is_none());
+
+    let mps = r#"{"version":"2.13.0","cuda":null,"hip":null,"cuda_available":false,
+        "devices":[],"memory":[],"mps_available":true,"mps_max":38654705664}"#;
+    let info = parse_torch_info(mps).unwrap();
+    assert!(info.mps_available);
+    assert_eq!(info.mps_recommended_max_bytes, Some(36 * GIB));
+
+    let rocm = r#"{"version":"2.13.0+rocm6.2","cuda":null,"hip":"6.2.41133","cuda_available":true,
+        "devices":["AMD Radeon PRO W7900"],"memory":[51539607552],"mps_available":false,"mps_max":null}"#;
+    let info = parse_torch_info(rocm).unwrap();
+    assert_eq!(info.hip_build.as_deref(), Some("6.2.41133"));
+    assert_eq!(info.devices, ["AMD Radeon PRO W7900"]);
+    assert_eq!(info.device_memory_bytes, [Some(48 * GIB)]);
+
+    let cuda = r#"{"version":"2.13.0+cu124","cuda":"12.4","hip":null,"cuda_available":true,
+        "devices":["NVIDIA H100"],"memory":[null],"mps_available":false,"mps_max":null}"#;
+    let info = parse_torch_info(cuda).unwrap();
+    assert_eq!(info.cuda_build.as_deref(), Some("12.4"));
+    assert_eq!(info.device_memory_bytes, [None]);
 }
 
 #[test]
@@ -85,7 +188,7 @@ fn gpu_present_but_torch_cannot_use_it_warns() {
         Some(TorchInfo {
             version: "2.13.0+cu130".to_owned(),
             cuda_build: Some("13.0".to_owned()),
-            cuda_available: false,
+            ..TorchInfo::default()
         })
     });
     let rows = collect(&host, Path::new("."));
