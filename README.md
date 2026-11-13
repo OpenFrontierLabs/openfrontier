@@ -86,6 +86,10 @@ Everyone who has helped, in any way, not only code. Add someone by commenting `@
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
+## Acknowledgements
+
+Error monitoring sponsored by [Sentry](https://sentry.io).
+
 ## Licence
 
 Apache-2.0, see [LICENSE](LICENSE). Brand: Frontier Green `#66E36E`, Compute Green `#1B7F46`, Graphite `#0B0E0D`, Silver Gray `#6B7177`, Soft White `#F5F7F6`; Inter; dark first.
