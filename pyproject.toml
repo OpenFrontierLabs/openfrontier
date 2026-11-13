@@ -68,3 +68,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.uv]
+# ai2-olmo-core 3.0.0 pins filelock<4; 4.2.1 fixes 13 advisories (GHSA, Dependabot #1-#13) and keeps the FileLock API OLMo-core uses.
+override-dependencies = ["filelock>=4.2.1"]
