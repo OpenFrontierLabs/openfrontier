@@ -38,14 +38,13 @@ already told.
 
 ## What runs, and what it enforces
 
-`main` has no required status checks today, so a merge is blocked by the person reviewing it, not
-by GitHub. What runs on a PR:
+`main` is protected by a ruleset: pull request only, squash merges, resolved review threads, no
+branch deletion, no force-push, and the DCO check required. Nothing else is required:
 
-- The DCO check: red until every commit carries a `Signed-off-by`. A maintainer will not merge
-  past it.
-- CodeQL, from GitHub default setup.
-- `make check` and `make test`, which a reviewer expects you to have run (they are not wired into
-  CI). `uv lock --check` when you touched `uv.lock`.
+- The DCO check goes red until every commit carries a `Signed-off-by`, and that blocks the merge.
+- CodeQL runs from GitHub default setup; it does not block.
+- `make check`, `make test` and `uv lock --check` are what a reviewer expects you to have run.
+  No workflow runs them, and this repository does not use Actions.
 
 Guidance that review will hold you to:
 
