@@ -38,7 +38,7 @@ Terms used across this repo, in plain words. If a term in a doc or issue is not 
 
 **Relay.** A libp2p peer that forwards traffic between two peers that cannot reach each other directly, often because of NAT. Planned for layer 3; see [ARCHITECTURE.md](ARCHITECTURE.md); spec: [circuit relay v2](https://github.com/libp2p/specs/blob/master/relay/circuit-v2.md).
 
-**RLVR** (Reinforcement Learning with Verifiable Rewards). RL where the reward is a hard check — a unit test, a maths verifier, a compiler — rather than a learned reward model, so the signal cannot be gamed. Phase 2 runs it with open-instruct's `grpo_fast.py`, see [phase2-post.md](phase2-post.md); introduced in [DeepSeekMath](https://arxiv.org/abs/2402.14740).
+**RLVR** (Reinforcement Learning with Verifiable Rewards). RL where the reward is a hard check — a unit test, a maths verifier, a compiler — rather than a learned reward model, which is harder to exploit than a learned reward but can still be gamed by a weak verifier or test. Phase 2 runs it with open-instruct's `grpo_fast.py`, see [phase2-post.md](phase2-post.md); named in [Tülu 3](https://arxiv.org/abs/2411.15124), the work behind open-instruct.
 
 **Run 0.** The first planned training run: a dense ~1B baseline on one GPU node with OLMo-core. See [run0.md](run0.md).
 
