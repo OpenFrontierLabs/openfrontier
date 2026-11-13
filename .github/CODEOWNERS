@@ -13,8 +13,8 @@
 /.github/                           @bradlishman
 
 # Layer 1: contributor hardware (ofl doctor)
-/src/ofl/doctor.py                  @bradlishman
-/tests/test_doctor.py               @bradlishman
+/src/doctor.rs                      @bradlishman
+/tests/doctor.rs                    @bradlishman
 
 # Layer 2: Open Frontier Node (no code yet; see docs/join-a-node.md)
 /docs/join-a-node.md                @bradlishman
@@ -22,10 +22,10 @@
 # Layer 3: Rust P2P network (no code yet)
 
 # Layer 4: training engine
-/src/ofl/run0.py                    @bradlishman
-/src/ofl/moe.py                     @bradlishman
-/src/ofl/phases.py                  @bradlishman
-/src/ofl/smoke/                     @bradlishman
+/src/run0.rs                        @bradlishman
+/src/moe.rs                         @bradlishman
+/src/phases.rs                      @bradlishman
+/smoke/                             @bradlishman
 /configs/                           @bradlishman
 /docs/run0.md                       @bradlishman
 /docs/phase1-moe.md                 @bradlishman
@@ -35,12 +35,12 @@
 # Layer 5: storage and evidence
 /manifests/                         @bradlishman
 /ledger/                            @bradlishman
-/src/ofl/ledger.py                  @bradlishman
+/src/ledger.rs                      @bradlishman
 /CREDITS.md                         @bradlishman
 
 # Layer 6: member and operator console (lives in OpenFrontierLabs/website)
 
 # Layer 7: hosting and relays
-/src/ofl/deploy.py                  @bradlishman
+/src/deploy.rs                      @bradlishman
 
 # Layer 8: open outputs and evals (no code yet)

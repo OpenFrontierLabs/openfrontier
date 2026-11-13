@@ -27,10 +27,14 @@ reviews:
     - "!**/*.{png,jpg,jpeg,gif,webp,svg}"
     - "!ledger/EXAMPLE*"
   path_instructions:
-    - path: "src/ofl/**/*.py"
+    - path: "src/**/*.rs"
       instructions: >-
-        Python 3.11+, strict mypy, ruff. Behaviour lives in `ofl`, not the Makefile. A command that
-        is not built must fail with a message saying so, never pretend to work.
+        Behaviour lives in `ofl` (Rust), not the Makefile. A command that is not built must fail
+        with a message saying so, never pretend to work. Clippy pedantic is denied.
+    - path: "smoke/**/*.py"
+      instructions: >-
+        Python 3.11+, CPU only, no downloads. The training smokes and the swarm PoC; the `ofl` CLI
+        itself is Rust.
     - path: "configs/**"
       instructions: >-
         Every flag and key must exist in the upstream pinned in configs/upstreams.toml. A bumped pin

@@ -56,7 +56,7 @@ Each rung has one tracking issue labelled `type/tracking` on the roadmap project
 **Setup.**
 
 - Two or three workers on different networks; at least one Apple Silicon Mac (MPS) and at least one NVIDIA or CPU Linux machine.
-- The model and training loop are the existing reference DiLoCo in [`src/ofl/smoke/diloco_ref.py`](../src/ofl/smoke/diloco_ref.py) scaled to a small transformer (order of 10M to 50M parameters) on a public text shard listed in `manifests/datasets.toml`.
+- The model and training loop are the existing reference DiLoCo in [`smoke/smoke/diloco_ref.py`](../smoke/smoke/diloco_ref.py) scaled to a small transformer (order of 10M to 50M parameters) on a public text shard listed in `manifests/datasets.toml`.
 - Inner optimiser AdamW; outer optimiser SGD with Nesterov momentum 0.9, as in the smoke test. Inner steps per round, outer learning rate and round count are chosen in the implementing PR and recorded in the config.
 - Transport: pseudo-gradients cross the network through a minimal rust-libp2p peer (QUIC, TCP fallback) that replaces gloo for the all-reduce, one bootstrap peer, and a relay if a worker is behind NAT. No central parameter server; one peer may act as bootstrap only.
 - Each worker signs its pseudo-gradient messages with a persistent device key (layer 2), and peers reject unsigned or wrongly signed messages.

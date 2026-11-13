@@ -10,9 +10,9 @@ Short version: **single-node phase 1 contributions come first. Joining a DiLoCo 
 | `make doctor` | report GPU, CUDA driver versus torch build, DNS and HTTPS latency to huggingface.co and github.com, disk, clock, tool versions. Works with no GPU. |
 | `make smoke` | CPU: a real tiny OLMo-core run, then the reference DiLoCo |
 | `make dev` | a longer, streaming version of the first smoke |
-| `uv run ofl run0 launch [--dry-run]` | the real OLMo-core command for a single node (phase 1 dense) |
-| `uv run ofl moe launch [--dry-run]` | the real Megatron-LM command for a single 8-GPU node (phase 1 MoE) |
-| `uv run ofl run0 verify`, `uv run ofl moe verify` | check the launchers against their pinned upstreams |
+| `cargo run -- run0 launch [--dry-run]` | the real OLMo-core command for a single node (phase 1 dense) |
+| `cargo run -- moe launch [--dry-run]` | the real Megatron-LM command for a single 8-GPU node (phase 1 MoE) |
+| `cargo run -- run0 verify`, `cargo run -- moe verify` | check the launchers against their pinned upstreams |
 | `make deploy ENV=dry-run` | list what would be published; publishing is not implemented |
 
 `ofl doctor` exit status: 0 unless a hard failure. Hard failures are Python older than 3.11, torch not importable, less than 2 GiB free next to the repo, and github.com or huggingface.co unreachable. Everything else (no GPU, CPU-only torch, low disk, clock skew over 30 s) is a warning or information. It measures round-trip latency only; **it does not measure bandwidth**, and it does not tell you which run you qualify for, because no run defines thresholds yet.
@@ -41,20 +41,21 @@ A real but small multi-machine DiLoCo run exists as a **proof of concept**. It i
 On the coordinator machine (binds its Tailscale IPv4, port 8470; state under `~/.ofl/swarm/`):
 
 ```sh
-uv run ofl swarm coordinator --nodes 2 --rounds 30
+make setup   # once: the Python smoke environment
+cargo run -q -- swarm coordinator --nodes 2 --rounds 30
 ```
 
 On each node (detects `cuda`, then `mps`, then `cpu`):
 
 ```sh
-uv run ofl node join --coordinator http://<coordinator-tailscale-ip>:8470
+cargo run -q -- node join --coordinator http://<coordinator-tailscale-ip>:8470
 ```
 
-The project environment pins CPU-only torch on Linux, so a CUDA node uses its own environment with a CUDA torch build and `pip install --no-deps -e .` of this clone, then runs `ofl node join` from there. On macOS the project environment's torch already has MPS.
+The swarm is Python (`smoke/smoke/swarm`); the Rust `ofl` forwards `swarm` and `node` to it in the `smoke/` environment, which pins CPU-only torch on Linux. A CUDA node needs no Rust: in its own environment with a CUDA torch build, run `pip install --no-deps -e smoke/` in this clone, then `python -m smoke.swarm node join --coordinator …` (same arguments as `ofl node join`). On macOS the `smoke/` environment's torch already has MPS.
 
 Each round every node pulls the global weights (checked by SHA-256), runs 50 inner AdamW steps on its own contiguous shard, and pushes its pseudo-gradient; the coordinator averages them in rank order, takes one SGD step with Nesterov momentum 0.9 (outer learning rate 0.7) and evaluates the held-out loss. Rounds are synchronous: one slow node slows the run, and a node that leaves stalls it. Nodes report the hash of the weights they actually loaded, so every round records whether all nodes held identical weights.
 
-`uv run ofl swarm status` prints the registry (device, GPU, memory, torch, last heartbeat) and the per-round loss and hash agreement. A run directory `~/.ofl/swarm/runs/<run-id>/` holds `log.jsonl`, `receipt.json` (nodes, rounds, losses, wall time, final weights hash, every node's final hash, git SHA), `sample.txt` and `weights.f32`. The HTTP interface is described in [`src/ofl/swarm/openapi.yaml`](../src/ofl/swarm/openapi.yaml). `tests/test_swarm.py` runs the same protocol with two CPU nodes on localhost.
+`cargo run -q -- swarm status` prints the registry (device, GPU, memory, torch, last heartbeat) and the per-round loss and hash agreement. A run directory `~/.ofl/swarm/runs/<run-id>/` holds `log.jsonl`, `receipt.json` (nodes, rounds, losses, wall time, final weights hash, every node's final hash, git SHA), `sample.txt` and `weights.f32`. The HTTP interface is described in [`smoke/smoke/swarm/openapi.yaml`](../smoke/smoke/swarm/openapi.yaml). `smoke/tests/test_swarm.py` runs the same protocol with two CPU nodes on localhost.
 
 ### Show the swarm on the website
 

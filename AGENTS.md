@@ -43,7 +43,7 @@ branch deletion, no force-push, and the DCO check required. Nothing else is requ
 
 - The DCO check goes red until every commit carries a `Signed-off-by`, and that blocks the merge.
 - CodeQL runs from GitHub default setup; it does not block.
-- `make check`, `make test` and `uv lock --check` are what a reviewer expects you to have run.
+- `make check`, `make test` and `uv lock --check` (in `smoke/`) are what a reviewer expects you to have run.
   No workflow runs them, and this repository does not use Actions.
 
 Guidance that review will hold you to:
