@@ -47,3 +47,4 @@ Terms used across this repo, in plain words. If a term in a doc or issue is not 
 **SFT** (Supervised Fine-Tuning). Training a base model further on curated input-output examples so it learns a format or skill (instruction following, chat) rather than only next-token prediction. First stage of phase 2, with open-instruct's `finetune.py`; see [phase2-post.md](phase2-post.md) and [allenai/open-instruct](https://github.com/allenai/open-instruct).
 
 **Tokens vs parameters.** Tokens are the pieces text is cut into for the model, roughly sub-words; parameters are the learned numbers inside the model. A model's size is counted in parameters, the data it eats in tokens: Run 0 is about 1.5B parameters fed 30B tokens, see [run0.md](run0.md).
+
