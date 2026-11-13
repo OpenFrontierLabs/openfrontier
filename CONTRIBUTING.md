@@ -79,6 +79,29 @@ git push --force-with-lease
 
 Use your real name or a consistent public identity. Anonymous contributions cannot be accepted.
 
+## What reviews a pull request
+
+Reviews are automatic and free for public repositories. Fix what they flag, or say in the PR why not.
+
+| Check | What it does | Required to merge |
+| --- | --- | --- |
+| DCO | Fails if a commit lacks a matching `Signed-off-by` ([DCO](#sign-your-work-dco)). | Yes |
+| CodeRabbit | AI review and a summary of the change, configured in [`.coderabbit.yaml`](.coderabbit.yaml). Comment `@coderabbitai review` to re-run it. | No |
+| CodeQL | Code scanning for security bugs (GitHub default setup). | No |
+| SonarQube Cloud | Static analysis for bugs, vulnerabilities and code smells (automatic analysis, no CI). | No |
+
+A maintainer reads every PR. The AI reviewers can be wrong; they do not replace that.
+
+## Bot commands
+
+A small script ([`tools/ofl-bot/`](tools/ofl-bot/)) runs every 10 minutes. It uses no model and is idempotent.
+
+- `/assign` on an issue assigns you; `/unassign` removes you. Maintainers can add `@handle`.
+- New issues get `needs-triage`; PRs get `layer/*` and `area/*` labels from the paths they change.
+- A first issue or PR gets a welcome comment, and a failed DCO check gets a hint on how to fix it.
+- Issues and PRs idle for 45 days get `stale` and close after 14 more days without a reply. `type/rfc`, `type/tracking`, `good first issue`, `roadmap` and `security` are exempt.
+- `@all-contributors please add @handle for <contribution types>` adds someone to the README contributors list.
+
 ## Labels
 
 | Label | Meaning |
