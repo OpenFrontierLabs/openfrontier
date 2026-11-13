@@ -39,14 +39,14 @@ Later, once phase 3 exists, and not scheduled: a mid-scale community model of ab
 
 ```bash
 git clone https://github.com/OpenFrontierLabs/openfrontier && cd openfrontier
-make setup      # uv sync from uv.lock; needs uv, installs nothing outside the repo
+make setup      # uv sync the Python smoke environment (smoke/uv.lock); needs uv and a Rust toolchain
 make doctor     # GPU, CUDA, network latency, disk, clock, versions; works with no GPU
-make smoke      # CPU, no downloads, about half a minute here: tiny OLMo-core run, then reference DiLoCo
+make smoke      # CPU: tiny OLMo-core run, then reference DiLoCo (first run downloads CPU torch once)
 make help       # every target
-uv run ofl run0 launch --dry-run    # print the real OLMo-core command for Run 0
+cargo run -- run0 launch --dry-run    # print the real OLMo-core command for Run 0
 ```
 
-`make check` and `make test` run lint, types, schema and config checks, and the unit tests. All targets are one-line wrappers around the `ofl` CLI in `src/ofl/`.
+`make check` runs `cargo fmt --check`, clippy, the ledger schema and example, and the config and pin checks; `make test` runs `cargo test`, then the swarm tests (`smoke/tests`, pytest). All targets are one-line wrappers around `ofl`, the Rust CLI in `src/`. The two training smokes are Python (`smoke/`), because they drive the pinned `olmo_core` and `torch` trainers; `ofl` runs them in the `smoke/` environment.
 
 What `make smoke` does and does not prove: it runs the pinned OLMo-core trainer on CPU with a 1.1M-parameter model and checks that the loss falls and a checkpoint is written; and it runs a **reference implementation** of DiLoCo (not prime-diloco, which needs CUDA) on two CPU workers and checks that the loss falls and the workers agree after each outer sync. It does not exercise the 1B configuration, real data or a GPU.
 

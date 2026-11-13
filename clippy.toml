@@ -1,0 +1,10 @@
+# Clippy supporting config for the canonical Algodyne lint baseline.
+# The deny table lives in Cargo.toml [lints]. Complexity thresholds stay at
+# Clippy defaults (cognitive_complexity 25, too_many_lines 100) so the deny is
+# landable without a dedicated decomposition pass — the same deliberate choice
+# the matrix workspace documents in its clippy.toml.
+
+disallowed-methods = [
+  { path = "std::env::set_var", reason = "not thread-safe — use a config struct" },
+  { path = "std::env::remove_var", reason = "not thread-safe — use a config struct" },
+]

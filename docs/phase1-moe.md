@@ -34,8 +34,8 @@ Other details from the handbook: sequence length 4096; global batch 512 (2,097,1
 ## Run it
 
 ```bash
-uv run ofl moe verify                                    # fetch the pin, check the flag names
-uv run ofl moe launch --dry-run --tokenizer-dir /data/tokenizer --data-args-path /data/data-args.txt
+cargo run -- moe verify                                    # fetch the pin, check the flag names
+cargo run -- moe launch --dry-run --tokenizer-dir /data/tokenizer --data-args-path /data/data-args.txt
 ```
 
 A real launch needs: a node with 8 GPUs of about 80 GB; a Python environment with Megatron-LM's dependencies (the handbook uses the NGC image above; `--python` selects the interpreter); a tokenizer directory; and a `data-args.txt` listing Megatron dataset prefixes, produced by the handbook's `tokenize_first_run.py` (not part of this repo). `ofl` does none of the tokenisation. The Megatron-LM licence is reported as unclassified by GitHub; read its `LICENSE` before depending on it.

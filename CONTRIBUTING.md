@@ -20,14 +20,14 @@ New to the vocabulary (DiLoCo, island, pseudo-gradient)? The [glossary](docs/GLO
 ```bash
 git clone https://github.com/OpenFrontierLabs/openfrontier
 cd openfrontier
-make setup     # uv sync from uv.lock; needs uv (https://docs.astral.sh/uv/)
-make check     # lint, format, types, ledger schema, configs and pins
-make test
+make setup     # uv sync the Python smoke environment; needs uv (https://docs.astral.sh/uv/) and a Rust toolchain
+make check     # cargo fmt --check, clippy, ledger schema, configs and pins
+make test      # cargo test, then the swarm pytest in smoke/
 make smoke     # CPU only: a real tiny OLMo-core run, then reference DiLoCo
 make help      # every target
 ```
 
-Everything is behind `make` targets that forward to `ofl`, the Python CLI in `src/ofl/`. Behaviour lives in `ofl`, not in the Makefile.
+Everything is behind `make` targets that forward to `ofl`, the Rust CLI in `src/`. Behaviour lives in `ofl`, not in the Makefile. The two training smokes are Python (`smoke/`) because they drive the pinned `olmo_core` and `torch` trainers.
 
 Good first areas:
 

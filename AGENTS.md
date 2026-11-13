@@ -17,10 +17,11 @@ commands, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layers.
 
 ## Gate
 
-- Run at commit, once: `make check` (ruff, format, mypy, ledger schema, configs and pins),
+- Run at commit, once: `make check` (cargo fmt, clippy, ledger schema, configs and pins),
   `make test`, and `make smoke` for anything touching training, data, checkpoints or the CLI's
   run paths. `make check-affected` does not exist; do not invent gates.
-- Behaviour lives in `src/ofl/`. A `make` recipe stays a one-line forward to `ofl`; never put
+- Behaviour lives in `ofl`, the Rust CLI in `src/`; the training smokes and the swarm PoC are
+  Python in `smoke/`. A `make` recipe stays a one-line forward to `ofl`; never put
   shell logic in the Makefile.
 - CPU only, no downloads, in this environment: tests and smoke must not fetch models, datasets or
   weights, and must not require a GPU. GPU work runs on a node ([docs/run0.md](docs/run0.md)).
@@ -31,8 +32,9 @@ commands, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layers.
 
 ## Dependencies
 
-- `uv` only, `uv.lock` is the source of truth. `uv lock --check` passes; a lock change names only
-  the intended package.
+- `uv` only for Python, in `smoke/`: `smoke/uv.lock` is the source of truth and `uv lock --check`
+  passes there. `Cargo.lock` is the source of truth for Rust. A lock change names only the
+  intended package.
 - Upstreams are pinned by `ref` and `sha` together in [configs/upstreams.toml](configs/upstreams.toml).
   Move both and re-run `ofl run0 verify` / `ofl moe verify`. Do not vendor upstream code.
 - Do not add a flag or config key a launcher passes unless it exists in the pinned upstream.

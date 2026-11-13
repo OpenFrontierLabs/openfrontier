@@ -46,14 +46,14 @@ FineWeb-Edu (`HuggingFaceFW/fineweb-edu`, ODC-By 1.0, which requires attribution
 ## Run it
 
 ```bash
-uv run ofl run0 launch --dry-run          # print the exact command; needs no GPU, no download
-uv run ofl run0 verify                    # fetch the pin; the upstream script accepts every override (--dry-run)
+cargo run -- run0 launch --dry-run          # print the exact command; needs no GPU, no download
+cargo run -- run0 verify                    # fetch the pin; the upstream script accepts every override (--dry-run)
 ```
 
 On a GPU node: create an environment with a CUDA build of torch and `ai2-olmo-core==3.0.0` (the environment `make setup` creates has CPU torch on purpose), then
 
 ```bash
-uv run ofl run0 launch --python /path/to/gpu-env/bin/python --nproc 8
+cargo run -- run0 launch --python /path/to/gpu-env/bin/python --nproc 8
 ```
 
 This runs `python -m torch.distributed.run --standalone --nproc-per-node=N <checkout>/src/examples/llm/train.py run0 ...` with the overrides in the config. The launcher fetches the OLMo-core checkout at the pinned commit into `.cache/upstreams/olmo-core` and refuses to run if it is at another commit. We have **not** run this on a GPU. OLMo-core's README lists optional kernels (flash-attn, TransformerEngine, Liger) that you may want installed; none of that has been tried here.
