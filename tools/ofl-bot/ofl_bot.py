@@ -89,9 +89,14 @@ class Bot:
         self.state: dict[str, Any] = {"items": {}, "comments": {}, "last_stale_sweep": None}
         if STATE_FILE.exists():
             try:
-                self.state.update(json.loads(STATE_FILE.read_text()))
-            except ValueError:  # corrupt state: start fresh, markers keep comments idempotent
-                self.state["items"] = {}
+                loaded = json.loads(STATE_FILE.read_text())
+                ok = all(isinstance(loaded.get(k), dict) for k in ("items", "comments"))
+            except ValueError:
+                ok = False
+            if ok:
+                self.state.update(loaded)
+            else:  # corrupt state: do not replay old commands as new
+                self.state["replay_guard"] = True
         self.label_cache: dict[str, set[str]] = {}
 
     # -- plumbing ---------------------------------------------------------------------------
@@ -253,8 +258,18 @@ class Bot:
         )
         seen["triaged"] = True  # only after the label request succeeded
 
+    def is_first_timer(self, repo: str, item: dict[str, Any]) -> bool:
+        if item["author_association"] in FIRST_TIME:
+            return True
+        if "pull_request" in item or item["author_association"] != "NONE":
+            return False
+        # GitHub only flags first-timers by commits and PRs; a first issue arrives as NONE
+        login = item["user"]["login"]
+        mine = self.gh("GET", f"repos/{ORG}/{repo}/issues?creator={login}&state=all&per_page=2")
+        return len(mine) == 1
+
     def welcome(self, repo: str, item: dict[str, Any], comments: list[dict[str, Any]]) -> None:
-        if item["author_association"] not in FIRST_TIME or item["user"]["type"] == "Bot":
+        if item["user"]["type"] == "Bot" or not self.is_first_timer(repo, item):
             return
         if self.has_marker(comments, "welcome"):
             return
@@ -274,6 +289,8 @@ class Bot:
         done: dict[str, bool] = self.state["comments"]
         assigned = {a["login"] for a in item["assignees"]}
         path = f"repos/{ORG}/{repo}/issues/{item['number']}/assignees"
+        if self.state.pop("replay_guard", False):
+            done.update({f"{repo}#{c['id']}": True for c in comments})
         for c in comments:
             key = f"{repo}#{c['id']}"
             if key in done or self.is_bot_comment(c):
