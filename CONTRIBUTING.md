@@ -13,6 +13,8 @@ Where to talk: [Discord](https://discord.gg/M4sD8T5M8D) for chat, [Discussions](
 3. Open a draft pull request early, even after an hour of work. Questions on a draft are welcome.
 4. Every commit is signed off (see [DCO](#sign-your-work-dco)).
 
+New to the vocabulary (DiLoCo, island, pseudo-gradient)? The [glossary](docs/GLOSSARY.md) explains the terms used across the docs in plain words.
+
 ## Contribute code
 
 ```bash
