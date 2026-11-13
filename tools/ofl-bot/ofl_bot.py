@@ -15,7 +15,6 @@ State and logs live in ~/.ofl/bot/ (state.json, bot.log).
 from __future__ import annotations
 
 import argparse
-import contextlib
 import fnmatch
 import json
 import os
@@ -89,9 +88,10 @@ class Bot:
         self.env = {**os.environ, "GH_TOKEN": TOKEN_FILE.read_text().strip()}
         self.state: dict[str, Any] = {"items": {}, "comments": {}, "last_stale_sweep": None}
         if STATE_FILE.exists():
-            # corrupt state: start fresh, markers keep comments idempotent
-            with contextlib.suppress(ValueError):
+            try:
                 self.state.update(json.loads(STATE_FILE.read_text()))
+            except ValueError:  # corrupt state: start fresh, markers keep comments idempotent
+                self.state["items"] = {}
         self.label_cache: dict[str, set[str]] = {}
 
     # -- plumbing ---------------------------------------------------------------------------
