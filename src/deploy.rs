@@ -34,11 +34,11 @@ fn collect_step_dirs(dir: &Path, found: &mut Vec<PathBuf>) {
         if !path.is_dir() {
             continue;
         }
-        if path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("step")) {
-            // ubs:ignore[rust.collections.clone-in-loop,rust.collections.clone-any] -- the path is both stored and recursed into; one clone is required, not a per-iteration waste.
-            found.push(path.clone());
-        }
+        let is_step = path.file_name().is_some_and(|n| n.to_string_lossy().starts_with("step"));
         collect_step_dirs(&path, found);
+        if is_step {
+            found.push(path);
+        }
     }
 }
 

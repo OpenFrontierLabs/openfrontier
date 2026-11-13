@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 use crate::error::{OflError, Result};
 use crate::repo::find_root;
@@ -165,15 +165,6 @@ enum UnbuiltAction {
     Launch,
 }
 
-/// Assert the CLI definition is internally consistent.
-///
-/// Panics on a broken definition (duplicate names, bad defaults); called by the
-/// test suite so a malformed parser fails `cargo test` rather than every binary
-/// invocation.
-pub fn debug_assert() {
-    Cli::command().debug_assert();
-}
-
 /// Parse, dispatch, report. Returns the process exit code.
 #[must_use]
 pub fn main() -> ExitCode {
@@ -308,4 +299,16 @@ fn list_upstreams() -> Result<i32> {
         println!("{:<24} {:<10} {}  {license}", up.name, up.reference, up.sha);
     }
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory;
+
+    /// A broken parser definition must fail the suite, not panic on every
+    /// invocation (the clap auto-help collision regression).
+    #[test]
+    fn cli_definition_is_valid() {
+        super::Cli::command().debug_assert();
+    }
 }

@@ -2,19 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
-use regex::Regex;
-use std::sync::LazyLock;
-
 use crate::error::{OflError, Result};
 use crate::upstreams::{self, Upstream};
 
 /// Phase config directories, in roadmap order.
 const PHASE_DIRS: [&str; 4] = ["phase1-dense", "phase1-moe", "phase2-post", "phase3-diloco"];
-/// A dataset revision: 40 lowercase hex digits.
-#[expect(clippy::expect_used, reason = "the regex literal is compile-time valid")]
-// ubs:ignore[rust.perf.regex-new,rust.ownership.unwrap-expect] -- compiled once in a LazyLock static; the expect is on a compile-time-valid literal, not runtime input.
-static HEX40: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new("^[0-9a-f]{40}$").expect("static regex is valid"));
 
 /// `configs/phase1-dense/smoke-tiny.toml`, fully typed.
 #[derive(Clone, Debug)]
@@ -402,7 +394,7 @@ fn check_manifest_kind(raw: &toml::Table, rel: &str, kind: &str, required: &[&st
             }
         }
         if let Some(rev) = entry.get("revision").and_then(toml::Value::as_str)
-            && !HEX40.is_match(rev)
+            && !upstreams::SHA_RE.is_match(rev)
         {
             // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
             out.push(format!("{rel}: [[{kind}]] {ident} revision is not a 40-hex commit"));
