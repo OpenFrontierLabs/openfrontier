@@ -15,6 +15,7 @@ State and logs live in ~/.ofl/bot/ (state.json, bot.log).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fnmatch
 import json
 import os
@@ -88,7 +89,9 @@ class Bot:
         self.env = {**os.environ, "GH_TOKEN": TOKEN_FILE.read_text().strip()}
         self.state: dict[str, Any] = {"items": {}, "comments": {}, "last_stale_sweep": None}
         if STATE_FILE.exists():
-            self.state.update(json.loads(STATE_FILE.read_text()))
+            # corrupt state: start fresh, markers keep comments idempotent
+            with contextlib.suppress(ValueError):
+                self.state.update(json.loads(STATE_FILE.read_text()))
         self.label_cache: dict[str, set[str]] = {}
 
     # -- plumbing ---------------------------------------------------------------------------
@@ -107,24 +110,37 @@ class Bot:
         if body is not None:
             cmd += ["--input", "-"]
             stdin = json.dumps(body)
-        proc = subprocess.run(cmd, input=stdin, capture_output=True, text=True, env=self.env)
+        try:
+            proc = subprocess.run(
+                cmd, input=stdin, capture_output=True, text=True, env=self.env, timeout=120
+            )
+        except subprocess.TimeoutExpired as err:
+            raise RuntimeError(f"{method} {path}: timed out") from err
         if proc.returncode != 0:
             raise RuntimeError(f"{method} {path}: {proc.stderr.strip()[:300]}")
         out = proc.stdout.strip()
         if not out:
             return None
-        if method != "GET":
-            return json.loads(out)
+        try:
+            return self.parse(out)
+        except ValueError as err:
+            raise RuntimeError(f"{method} {path}: bad JSON: {err}") from err
+
+    @staticmethod
+    def parse(out: str) -> Any:
+        """Decode every JSON document in `out` (`gh --paginate` prints one per page)."""
         docs: list[Any] = []
         pos, decoder = 0, json.JSONDecoder()
-        while pos < len(out):  # --paginate prints one JSON document per page
+        while pos < len(out):
             doc, pos = decoder.raw_decode(out, pos)
             docs.append(doc)
             while pos < len(out) and out[pos].isspace():
                 pos += 1
+        if len(docs) == 1:
+            return docs[0]
         if all(isinstance(d, list) for d in docs):
             return [row for page in docs for row in page]
-        return docs[0] if len(docs) == 1 else docs
+        return docs
 
     def write(
         self, method: str, path: str, body: dict[str, Any] | None, what: str, **fields: object
