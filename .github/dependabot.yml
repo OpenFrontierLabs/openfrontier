@@ -1,15 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      actions:
-        patterns: ["*"]
-    commit-message:
-      prefix: ci
-    labels: [type/chore]
   - package-ecosystem: uv
     directory: /
     schedule:
@@ -17,6 +7,15 @@ updates:
     groups:
       python-dev:
         dependency-type: development
+      python:
+        dependency-type: production
+        update-types: [minor, patch]
+    # ai2-olmo-core (pinned in pyproject.toml) requires torch>=2.10,<2.14, so newer torch cannot
+    # resolve and fails the run. Lift this when the pin moves. filelock needs no ignore: its cap
+    # is lifted by override-dependencies in pyproject.toml.
+    ignore:
+      - dependency-name: torch
+        versions: [">=2.14"]
     commit-message:
       prefix: deps
     labels: [type/chore, area/python]
