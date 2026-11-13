@@ -178,7 +178,6 @@ enum UnbuiltAction {
 }
 
 /// Parse, dispatch, report. Returns the process exit code.
-#[must_use]
 pub fn main() -> ExitCode {
     let cli = Cli::parse();
     match dispatch(cli.command) {
