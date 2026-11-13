@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,48 @@ def test_two_cpu_nodes_train_one_model_over_http(tmp_path: Path) -> None:
     assert (coord.run_dir / "sample.txt").read_text(encoding="utf-8").startswith("the ")
     status = json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))
     assert "done, round 5/5" in format_status(status)
+
+
+def _members_within(client: node.Client, ids: set[str], timeout: float) -> set[str]:
+    """Poll the coordinator until every id in `ids` is a member, or `timeout` seconds pass."""
+    deadline = time.monotonic() + timeout
+    seen: set[str] = set()
+    while time.monotonic() < deadline:
+        seen = set(client.request("GET", "/v1/status")["members"])
+        if ids <= seen:
+            break
+        time.sleep(0.05)
+    return seen
+
+
+def test_two_peers_discover_each_other_within_timeout(tmp_path: Path) -> None:
+    text = "".join(f"the {w} sat on the mat. " for w in ("cat", "dog", "rat", "bat") * 100)
+    cfg = co.RunConfig(nodes=2, rounds=1, inner_steps=1, batch_size=8, eval_batches=2)
+    coord = co.Coordinator(text, cfg, {"d_model": 16, "n_layers": 1, "seq_len": 16}, tmp_path)
+    bound: list[int] = []
+    ready = threading.Event()
+
+    def on_bound(port: int) -> None:
+        bound.append(port)
+        ready.set()
+
+    server = threading.Thread(target=co.serve, args=(coord, "127.0.0.1", 0, on_bound), daemon=True)
+    server.start()
+    assert ready.wait(30)
+    url = f"http://127.0.0.1:{bound[0]}"
+    # Two peers on one host, distinct identities via the device string; port 0, no fixed port.
+    first = node.Client(url)
+    second = node.Client(url)
+    first_id = first.post_json("/v1/nodes", node.describe("cpu"))["node_id"]
+    # The second peer bootstraps from the first: it reads the registry before joining.
+    assert {first_id} <= _members_within(second, {first_id}, 10)
+    second_id = second.post_json("/v1/nodes", node.describe("cpu:0"))["node_id"]
+    assert second_id != first_id
+    both = {first_id, second_id}
+    assert both <= _members_within(first, both, 10)
+    assert both <= _members_within(second, both, 10)
+    coord.done.set()
+    server.join(30)
 
 
 def _run_swarm(tmp_path: Path, reporter: report.Reporter, github: str | None) -> co.Coordinator:
