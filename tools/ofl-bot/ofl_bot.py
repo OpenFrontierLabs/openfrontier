@@ -152,8 +152,11 @@ class Bot:
         self.log(what, **fields)
 
     def save(self) -> None:
-        if not self.dry_run:
-            STATE_FILE.write_text(json.dumps(self.state, indent=1))
+        if self.dry_run:
+            return
+        tmp = STATE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.state, indent=1))
+        tmp.replace(STATE_FILE)  # atomic: a crash never leaves a half-written state.json
 
     def labels(self, repo: str) -> set[str]:
         if repo not in self.label_cache:
@@ -234,10 +237,10 @@ class Bot:
     def triage(self, repo: str, issue: dict[str, Any], seen: dict[str, Any]) -> None:
         if seen.get("triaged") or "needs-triage" not in self.labels(repo):
             return
-        seen["triaged"] = True
         names = {label["name"] for label in issue["labels"]}
         age = now() - parse_time(issue["created_at"])
         if names or age > timedelta(days=1):  # a maintainer already labelled it, or state was lost
+            seen["triaged"] = True
             return
         self.write(
             "POST",
@@ -248,6 +251,7 @@ class Bot:
             number=issue["number"],
             add=["needs-triage"],
         )
+        seen["triaged"] = True  # only after the label request succeeded
 
     def welcome(self, repo: str, item: dict[str, Any], comments: list[dict[str, Any]]) -> None:
         if item["author_association"] not in FIRST_TIME or item["user"]["type"] == "Bot":
@@ -268,45 +272,33 @@ class Bot:
         if "pull_request" in item:
             return
         done: dict[str, bool] = self.state["comments"]
+        assigned = {a["login"] for a in item["assignees"]}
+        path = f"repos/{ORG}/{repo}/issues/{item['number']}/assignees"
         for c in comments:
             key = f"{repo}#{c['id']}"
             if key in done or self.is_bot_comment(c):
                 continue
-            done[key] = True
+            acted = False
             for line in (c.get("body") or "").splitlines():
                 parts = line.strip().split()
                 if not parts or parts[0] not in ("/assign", "/unassign"):
                     continue
-                actor = c["user"]["login"]
-                target = actor
+                acted = True
+                target = c["user"]["login"]
                 if (
                     len(parts) > 1
                     and parts[1].startswith("@")
                     and c["author_association"] in MAINTAINER_ASSOCIATIONS
                 ):
                     target = parts[1].lstrip("@")
-                assigned = {a["login"] for a in item["assignees"]}
-                path = f"repos/{ORG}/{repo}/issues/{item['number']}/assignees"
+                fields = {"repo": repo, "number": item["number"], "user": target}
                 if parts[0] == "/assign" and target not in assigned:
-                    self.write(
-                        "POST",
-                        path,
-                        {"assignees": [target]},
-                        "assign",
-                        repo=repo,
-                        number=item["number"],
-                        user=target,
-                    )
+                    self.write("POST", path, {"assignees": [target]}, "assign", **fields)
+                    assigned.add(target)
                 elif parts[0] == "/unassign" and target in assigned:
-                    self.write(
-                        "DELETE",
-                        path,
-                        {"assignees": [target]},
-                        "unassign",
-                        repo=repo,
-                        number=item["number"],
-                        user=target,
-                    )
+                    self.write("DELETE", path, {"assignees": [target]}, "unassign", **fields)
+                    assigned.discard(target)
+            if acted:
                 self.write(
                     "POST",
                     f"repos/{ORG}/{repo}/issues/comments/{c['id']}/reactions",
@@ -315,7 +307,7 @@ class Bot:
                     repo=repo,
                     comment=c["id"],
                 )
-                break
+            done[key] = True  # a failed write raises above, so the command is retried next run
 
     def dco_hint(self, repo: str, pr: dict[str, Any], comments: list[dict[str, Any]]) -> None:
         if self.has_marker(comments, "dco"):
@@ -378,18 +370,12 @@ class Bot:
                         number=number,
                     )
                 elif now() - stale_at >= CLOSE_AFTER:
-                    self.comment(
-                        repo,
-                        number,
-                        "closed",
-                        "Closing after 14 more days without activity. "
-                        "Reopen it any time if this is still relevant.",
-                    )
                     state = (
                         {"state": "closed", "state_reason": "not_planned"}
                         if "pull_request" not in item
                         else {"state": "closed"}
                     )
+                    # close first: a failed close then never leaves a repeated close comment
                     self.write(
                         "PATCH",
                         f"repos/{ORG}/{repo}/issues/{number}",
@@ -397,6 +383,13 @@ class Bot:
                         "close",
                         repo=repo,
                         number=number,
+                    )
+                    self.comment(
+                        repo,
+                        number,
+                        "closed",
+                        "Closing after 14 more days without activity. "
+                        "Reopen it any time if this is still relevant.",
                     )
             elif now() - parse_time(item["updated_at"]) >= STALE_AFTER:
                 self.comment(
