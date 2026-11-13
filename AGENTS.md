@@ -1,74 +1,59 @@
 # AGENTS.md
 
-This file binds automated agents working in this checkout. Human process lives in
-[CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md) and [rfcs/](rfcs/README.md); read
-them before your first change. Constraints only: run `make help` for targets, `ofl help` for
-commands, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layers.
+Automated agents working in this repository read this first. Open Frontier Labs is built in
+public, so treat it the way an outside contributor's agent would: it adds only what surprises an
+agent, and defers to [CONTRIBUTING.md](CONTRIBUTING.md) for everything a human contributor is
+already told.
 
-## Commits and branches
+## What binds you
 
-- Every commit is signed off: `git commit -s`. The DCO check is required to merge, a missing
-  trailer cannot be added without rewriting history, and this checkout forbids force-push. Start
-  signed or accept that the branch is dead.
-- Never force-push, rebase a pushed branch, reset, clean, or delete a branch or tag, yours or
-  anyone else's. A superseded branch costs nothing; a rewrite costs the PR.
-- One logical change per PR. Squash merge: the PR title becomes the commit on `main`, imperative,
-  e.g. `Report MPS devices in ofl doctor`, with `Closes #N` in the body.
+- [CONTRIBUTING §AI agents](CONTRIBUTING.md#ai-agents): agent-written work is welcome, a human is
+  accountable for it, and it is labelled — `Agent: <agent> / <model>` in the commit message and
+  the PR description, plus the `agent-authored` label.
+- [CONTRIBUTING §Contribute code](CONTRIBUTING.md#contribute-code): the gate (`make check`,
+  `make test`, `make smoke`), upstreams pinned by `ref` and `sha` together, no vendored code, no
+  launcher flag or config key the pinned upstream does not have.
+- [CONTRIBUTING §Pull requests](CONTRIBUTING.md#pull-requests): one logical change, what you ran
+  in the description, squash merge, an RFC for anything hard to reverse.
+- [CONTRIBUTING §Sign your work](CONTRIBUTING.md#sign-your-work-dco): every commit carries a
+  `Signed-off-by` matching your git identity.
 
-## Gate
+## Commits
 
-- Run at commit, once: `make check` (cargo fmt, clippy, ledger schema, configs and pins),
-  `make test`, and `make smoke` for anything touching training, data, checkpoints or the CLI's
-  run paths. `make check-affected` does not exist; do not invent gates.
-- Behaviour lives in `ofl`, the Rust CLI in `src/`; the training smokes and the swarm PoC are
-  Python in `smoke/`. A `make` recipe stays a one-line forward to `ofl`; never put
-  shell logic in the Makefile.
-- CPU only, no downloads, in this environment: tests and smoke must not fetch models, datasets or
-  weights, and must not require a GPU. GPU work runs on a node ([docs/run0.md](docs/run0.md)).
-- A test must fail on a plausible bug. Tests that only check wiring, that a list grew, or that a
-  function did not raise are rejected in review.
-- `set -o pipefail` (or `${PIPESTATUS[0]}`) when you report the exit status of a piped command;
-  `cmd | tail` reports `tail`'s status, not `cmd`'s.
+- Sign off on the first commit with `git commit -s`. Adding the trailer later means rewriting
+  history, which CONTRIBUTING §Sign your work describes as a force-push. That rewrite is for your
+  own unmerged branch only: never `main`, never a branch carrying someone else's commits.
 
 ## Dependencies
 
-- `uv` only for Python, in `smoke/`: `smoke/uv.lock` is the source of truth and `uv lock --check`
-  passes there. `Cargo.lock` is the source of truth for Rust. A lock change names only the
-  intended package.
-- Upstreams are pinned by `ref` and `sha` together in [configs/upstreams.toml](configs/upstreams.toml).
-  Move both and re-run `ofl run0 verify` / `ofl moe verify`. Do not vendor upstream code.
-- Do not add a flag or config key a launcher passes unless it exists in the pinned upstream.
-- Dependabot alerts are fixed, never dismissed. When a dependent caps a package below its patched
-  release: confirm the cap in that dependent's metadata, check whether upstream relaxed it, then
-  force it with `[tool.uv] override-dependencies` and prove each consumer's real call path on the
-  new major (read its source; exercise the lock acquire/release or equivalent). Write the reason,
-  the pinned dependents and the alerts into the comment above the override, and delete the
-  override when an upstream cap lifts.
-- An `ignore:` rule in [.github/dependabot.yml](.github/dependabot.yml) written for an upstream cap
-  goes stale the moment an override removes the cap: drop it in the same change, or it silences
-  every later patched release in that range.
+- Fix Dependabot alerts; never dismiss one.
+- When a dependent caps a package below its patched release, first confirm the cap in that
+  dependent's own metadata, then check whether upstream has relaxed it. If it has not, force the
+  patched version with `[tool.uv] override-dependencies` and prove every consumer's real call path
+  on the new major by reading its source and exercising that path. Write the reason, the
+  dependents and the alert numbers into the comment above the override, and remove the override
+  when an upstream cap lifts.
+- Never add an `ignore:` entry to [.github/dependabot.yml](.github/dependabot.yml) for a version
+  that has a patched release. It silences every later fix, including security fixes.
 
-## Honesty
+## What runs, and what it enforces
 
-- No command pretends to work. An unbuilt phase fails with a message saying so; never a stub that
-  succeeds, a silent no-op, or a placeholder that returns.
-- When a doc claims something the code does not do, that is a bug: fix the doc or the code in the
-  same PR.
-- Say in the PR what you ran. Report a check you did not run as not run; never imply it passed.
-- Numbers in a summary come from tool output, not memory. Quote the command that produced them.
+`main` has no required status checks today, so a merge is blocked by the person reviewing it, not
+by GitHub. What runs on a PR:
 
-## Hard to reverse
+- The DCO check: red until every commit carries a `Signed-off-by`. A maintainer will not merge
+  past it.
+- CodeQL, from GitHub default setup.
+- `make check` and `make test`, which a reviewer expects you to have run (they are not wired into
+  CI). `uv lock --check` in `smoke/` when you touched `smoke/uv.lock`.
 
-- An RFC first (a markdown file in `rfcs/`, opened as a PR) for protocol messages, the ledger
-  schema or how credit is computed, licences, layer boundaries, a new repository, the milestone
-  ladder, or what a run must publish to count as done.
-- Never change `ledger/` schema, licence files or layer boundaries in a code PR.
+Guidance that review will hold you to:
 
-## Workspace
-
-- Scratch goes in `agent-temp create <slug>` and leaves with `agent-temp trash`; never a raw
-  `mktemp` path paired with `rm -rf`.
-- Leave files you did not create alone. Unexpected changes in `git status` belong to someone.
-- Durable decisions, corrections and lessons for this repository go to the Algodyne knowledge
-  graph (`assert_algodyne_facts`, actor `omp:openfrontier`) with evidence a later reader can
-  check: a commit or PR URL, not a session worktree path.
+- A test must fail on a plausible bug. Tests that check wiring, that a list grew, or that a call
+  did not raise are not wanted.
+- CPU only and no downloads in this environment: never make a test or smoke fetch weights,
+  datasets or models, and never require a GPU to pass.
+- `cmd | tail` reports `tail`'s status. Use `set -o pipefail` or `${PIPESTATUS[0]}` when you
+  report an exit code.
+- Numbers in a summary come from tool output, not memory. Quote the command.
+- Report a check you did not run as not run. Never imply it passed.

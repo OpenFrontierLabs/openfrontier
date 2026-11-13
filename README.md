@@ -4,6 +4,7 @@
 [![Discord](https://img.shields.io/badge/Discord-join-66E36E?logo=discord&logoColor=white)](https://discord.gg/M4sD8T5M8D)
 [![Website](https://img.shields.io/badge/web-openfrontier--labs.com-0B0E0D)](https://openfrontier-labs.com)
 [![Good first issues](https://img.shields.io/github/issues/OpenFrontierLabs/openfrontier/good%20first%20issue?color=7057ff&label=good%20first%20issues)](https://github.com/OpenFrontierLabs/openfrontier/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22)
+[![Quality gate](https://sonarcloud.io/api/project_badges/measure?project=OpenFrontierLabs_openfrontier&metric=alert_status)](https://sonarcloud.io/project/overview?id=OpenFrontierLabs_openfrontier)
 
 [Read the manifesto](MANIFESTO.md) · [Architecture](docs/ARCHITECTURE.md) · [Roadmap](https://github.com/orgs/OpenFrontierLabs/projects/1) · [Discussions](https://github.com/OpenFrontierLabs/openfrontier/discussions) · [RFCs](rfcs/README.md)
 
@@ -71,6 +72,19 @@ Code, compute and results are all welcome. [CONTRIBUTING.md](CONTRIBUTING.md) sa
 - [Discord](https://discord.gg/M4sD8T5M8D), [Discussions](https://github.com/OpenFrontierLabs/openfrontier/discussions), [Roadmap](https://github.com/orgs/OpenFrontierLabs/projects/1), [Security policy](SECURITY.md), [Glossary](docs/GLOSSARY.md)
 - Cite this work: [CITATION.cff](CITATION.cff)
 - Founding steward: [@bradlishman](https://github.com/bradlishman)
+
+## Contributors
+
+Everyone who has helped, in any way, not only code. Add someone by commenting `@all-contributors please add @handle for code, docs, ideas` on an issue or PR; the bot opens a PR. Compute is credited separately in [CREDITS.md](CREDITS.md).
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 ## Licence
 

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://www.coderabbit.ai/integrations/schema.v2.json
+language: en-US
+tone_instructions: >-
+  Plain and direct. Flag only real bugs, unbacked claims about results, and flags or config keys
+  missing from the pinned upstream. No praise, no emoji.
+early_access: false
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  commit_status: true
+  collapse_walkthrough: true
+  poem: false
+  in_progress_fortune: false
+  auto_apply_labels: false
+  auto_assign_reviewers: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  path_filters:
+    - "!uv.lock"
+    - "!**/*.lock"
+    - "!docs/img/**"
+    - "!**/*.{png,jpg,jpeg,gif,webp,svg}"
+    - "!ledger/EXAMPLE*"
+  path_instructions:
+    - path: "src/**/*.rs"
+      instructions: >-
+        Behaviour lives in `ofl` (Rust), not the Makefile. A command that is not built must fail
+        with a message saying so, never pretend to work. Clippy pedantic is denied.
+    - path: "smoke/**/*.py"
+      instructions: >-
+        Python 3.11+, CPU only, no downloads. The training smokes and the swarm PoC; the `ofl` CLI
+        itself is Rust.
+    - path: "configs/**"
+      instructions: >-
+        Every flag and key must exist in the upstream pinned in configs/upstreams.toml. A bumped pin
+        changes `ref` and `sha` together.
+    - path: "docs/**"
+      instructions: >-
+        No claims about results, traction or benchmarks. Anything not built is labelled planned.
+    - path: "ledger/**"
+      instructions: >-
+        Handles and GPU-hours only; entries must validate against the ledger schema.
+    - path: "tools/**"
+      instructions: >-
+        Housekeeping scripts must be idempotent and must never print or log tokens.

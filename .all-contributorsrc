@@ -1,0 +1,13 @@
+{
+  "projectName": "openfrontier",
+  "projectOwner": "OpenFrontierLabs",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": ["README.md"],
+  "imageSize": 64,
+  "commit": false,
+  "commitConvention": "none",
+  "contributorsPerLine": 7,
+  "contributorsSortAlphabetically": false,
+  "contributors": []
+}
