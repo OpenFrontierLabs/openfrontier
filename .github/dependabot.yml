@@ -10,13 +10,12 @@ updates:
       python:
         dependency-type: production
         update-types: [minor, patch]
-    # ai2-olmo-core (pinned in pyproject.toml) requires torch>=2.10,<2.14 and filelock<4, so
-    # newer releases cannot resolve and fail the run. Lift these when the pin moves.
+    # ai2-olmo-core (pinned in pyproject.toml) requires torch>=2.10,<2.14, so newer torch cannot
+    # resolve and fails the run. Lift this when the pin moves. filelock needs no ignore: its cap
+    # is lifted by override-dependencies in pyproject.toml.
     ignore:
       - dependency-name: torch
         versions: [">=2.14"]
-      - dependency-name: filelock
-        versions: [">=4"]
     commit-message:
       prefix: deps
     labels: [type/chore, area/python]

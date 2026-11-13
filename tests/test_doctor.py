@@ -1,7 +1,11 @@
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
-from ofl.doctor import Host, HttpsProbe, Row, TorchInfo, collect, exit_code
+import pytest
+
+from ofl.doctor import Host, HttpsProbe, Row, TorchInfo, _torch, collect, exit_code
 
 NOW = datetime(2026, 11, 12, 12, 0, 0, tzinfo=UTC)
 GIB = 2**30
@@ -37,7 +41,141 @@ def test_no_gpu_machine_warns_and_exits_zero() -> None:
     table = by_name(rows)
     assert table["gpu"].status == "warn"
     assert "CPU smoke only" in table["gpu"].detail
+    assert table["cuda"].status == "info"
+    assert table["rocm"].status == "info"
+    assert "not present" in table["rocm"].detail
+    assert table["mps"].status == "info"
+    assert "not present" in table["mps"].detail
     assert exit_code(rows) == 0
+
+
+def test_mps_device_reported_when_available() -> None:
+    def run(argv: list[str]) -> tuple[int, str]:
+        if argv[0] == "sysctl":
+            return 0, "Apple M3 Max"
+        if argv[0] == "uv":
+            return 0, "uv 0.0.0"
+        return 127, ""
+
+    mps_torch = TorchInfo(
+        version="2.13.0",
+        cuda_build=None,
+        cuda_available=False,
+        devices=(),
+        mps_available=True,
+        mps_recommended_max_bytes=48 * GIB,
+    )
+    rows = collect(fake_host(run=run, torch=lambda: mps_torch), Path("."))
+    table = by_name(rows)
+    assert table["gpu"].status == "ok"
+    assert "Apple M3 Max" in table["gpu"].detail
+    assert "48.0 GiB recommended max" in table["gpu"].detail
+    assert "backend: mps" in table["gpu"].detail
+    assert table["mps"].status == "ok"
+    assert "Apple MPS usable" in table["mps"].detail
+    assert table["cuda"].status == "info"
+    assert table["rocm"].status == "info"
+    assert exit_code(rows) == 0
+
+
+def test_rocm_device_reported_when_available() -> None:
+    rocm_torch = TorchInfo(
+        version="2.13.0+rocm6.2",
+        cuda_build=None,
+        cuda_available=True,
+        devices=("AMD Instinct MI300X",),
+        hip_build="6.2.41133",
+        device_memory_bytes=(192 * GIB,),
+    )
+    rows = collect(fake_host(torch=lambda: rocm_torch), Path("."))
+    table = by_name(rows)
+    assert table["gpu"].status == "ok"
+    assert "1 x AMD Instinct MI300X" in table["gpu"].detail
+    assert "192.0 GiB" in table["gpu"].detail
+    assert "backend: rocm" in table["gpu"].detail
+    assert "ROCm 6.2.41133" in table["gpu 0"].detail
+    assert table["rocm"].status == "ok"
+    assert "usable" in table["rocm"].detail
+    assert table["cuda"].status == "info"
+    assert table["mps"].status == "info"
+    assert exit_code(rows) == 0
+
+
+def test_rocm_build_without_usable_device_warns() -> None:
+    rocm_torch = TorchInfo(
+        version="2.13.0+rocm6.2",
+        cuda_build=None,
+        cuda_available=False,
+        devices=(),
+        hip_build="6.2.41133",
+    )
+    rows = collect(fake_host(torch=lambda: rocm_torch), Path("."))
+    table = by_name(rows)
+    assert table["gpu"].status == "warn"
+    assert table["rocm"].status == "warn"
+    assert "NOT usable" in table["rocm"].detail
+    assert exit_code(rows) == 0
+
+
+def test_torch_probe_stubs_cuda_mps_rocm_and_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
+    cpu_stub = SimpleNamespace(
+        __version__="2.13.0+cpu",
+        version=SimpleNamespace(cuda=None, hip=None),
+        cuda=SimpleNamespace(is_available=lambda: False, device_count=lambda: 0),
+        backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)),
+    )
+    monkeypatch.setitem(sys.modules, "torch", cpu_stub)
+    info = _torch()
+    assert info is not None
+    assert not info.cuda_available and not info.mps_available and info.hip_build is None
+
+    mps_stub = SimpleNamespace(
+        __version__="2.13.0",
+        version=SimpleNamespace(cuda=None, hip=None),
+        cuda=SimpleNamespace(is_available=lambda: False, device_count=lambda: 0),
+        backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: True)),
+        mps=SimpleNamespace(recommended_max_memory=lambda: 36 * GIB),
+    )
+    monkeypatch.setitem(sys.modules, "torch", mps_stub)
+    info = _torch()
+    assert info is not None
+    assert info.mps_available and info.mps_recommended_max_bytes == 36 * GIB
+
+    rocm_stub = SimpleNamespace(
+        __version__="2.13.0+rocm6.2",
+        version=SimpleNamespace(cuda=None, hip="6.2.41133"),
+        cuda=SimpleNamespace(
+            is_available=lambda: True,
+            device_count=lambda: 1,
+            get_device_name=lambda _i: "AMD Radeon PRO W7900",
+            get_device_properties=lambda _i: SimpleNamespace(total_memory=48 * GIB),
+        ),
+        backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)),
+    )
+    monkeypatch.setitem(sys.modules, "torch", rocm_stub)
+    info = _torch()
+    assert info is not None
+    assert info.hip_build == "6.2.41133"
+    assert info.devices == ("AMD Radeon PRO W7900",)
+    assert info.device_memory_bytes == (48 * GIB,)
+
+    cuda_stub = SimpleNamespace(
+        __version__="2.13.0+cu124",
+        version=SimpleNamespace(cuda="12.4", hip=None),
+        cuda=SimpleNamespace(
+            is_available=lambda: True,
+            device_count=lambda: 1,
+            get_device_name=lambda _i: "NVIDIA H100",
+            get_device_properties=lambda _i: SimpleNamespace(total_memory=80 * GIB),
+        ),
+        backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)),
+    )
+    monkeypatch.setitem(sys.modules, "torch", cuda_stub)
+    info = _torch()
+    assert info is not None
+    assert info.cuda_build == "12.4"
+    assert info.devices == ("NVIDIA H100",)
+    assert info.device_memory_bytes == (80 * GIB,)
 
 
 def test_gpu_with_cpu_only_torch_is_informational() -> None:

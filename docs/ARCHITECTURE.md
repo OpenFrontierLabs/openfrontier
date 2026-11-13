@@ -10,7 +10,7 @@ How it is meant to work: contributors join; the Node app profiles their hardware
 
 | # | Layer | In this repo today |
 | --- | --- | --- |
-| 1 | Contributor hardware | `ofl doctor` reports GPU, CUDA, disk, clock and latency. CPU nodes run the smoke tests. |
+| 1 | Contributor hardware | `ofl doctor` reports GPU, CUDA, ROCm, MPS, disk, clock and latency. CPU nodes run the smoke tests. |
 | 2 | Open Frontier Node | Nothing. The `ofl` CLI is a developer tool, not the node. |
 | 3 | Decentralized network | Nothing. |
 | 4 | Training engine | Mode A: a CPU reference DiLoCo, a pinned prime-diloco config, and single-node launchers for the islands. Mode B: nothing. |
@@ -23,10 +23,9 @@ How it is meant to work: contributors join; the Node app profiles their hardware
 
 Planned: NVIDIA GPUs (CUDA, PyTorch, Triton), Apple Silicon (MLX, Metal, MPS), AMD GPUs (ROCm), and CPU/test nodes, contributed through the Node app.
 
-Today: `ofl doctor` (`src/ofl/doctor.py`) checks Python, torch, GPU and CUDA, free disk, clock skew and round-trip latency to github.com and huggingface.co. It does not measure bandwidth. The single-node launchers target NVIDIA only; CPU runs only the smoke tests. Nothing has been tested on Apple Silicon or ROCm.
+Today: `ofl doctor` (`src/ofl/doctor.py`) checks Python, torch, GPU (NVIDIA CUDA, AMD ROCm, and Apple MPS), free disk, clock skew and round-trip latency to github.com and huggingface.co. It does not measure bandwidth. The single-node launchers target NVIDIA only; CPU runs only the smoke tests. Nothing has been tested on Apple Silicon or ROCm.
 
 **Next milestones**
-- Extend `ofl doctor` to report MPS and ROCm devices alongside CUDA.
 - Run `make smoke` on Apple Silicon (MPS) and on a ROCm machine, and record which steps pass.
 - Measure bandwidth, not just latency, since Mode A's sync cost depends on it.
 

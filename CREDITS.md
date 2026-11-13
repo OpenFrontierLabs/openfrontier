@@ -16,7 +16,7 @@ Compute contributions are recorded in a public, machine-readable **compute ledge
 
 Donated or pooled clusters are named as **islands** in the same file, with who donated them. Details, and how a ledger is produced, are in [ledger/README.md](ledger/README.md).
 
-Model cards list compute contributors and donors by GitHub handle. Every release names the merged-code contributors. Anyone with merged work on a release is an author on its paper, following the large named author lists of BigScience and EleutherAI.
+Model cards list compute contributors and donors by GitHub handle, rendered from the [model card template](docs/model-card-template.md). Every release names the merged-code contributors. Anyone with merged work on a release is an author on its paper, following the large named author lists of BigScience and EleutherAI.
 
 ## Status
 
