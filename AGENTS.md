@@ -36,11 +36,16 @@ already told.
 - Never add an `ignore:` entry to [.github/dependabot.yml](.github/dependabot.yml) for a version
   that has a patched release. It silences every later fix, including security fixes.
 
-## Enforced or guidance
+## What runs, and what it enforces
 
-Enforced by a check: the DCO sign-off check on a PR, `uv lock --check`, and `make check` (ruff,
-ruff format, mypy, ledger schema, configs and pins) plus `make test`. CodeQL runs but does not
-block a merge today.
+`main` has no required status checks today, so a merge is blocked by the person reviewing it, not
+by GitHub. What runs on a PR:
+
+- The DCO check: red until every commit carries a `Signed-off-by`. A maintainer will not merge
+  past it.
+- CodeQL, from GitHub default setup.
+- `make check` and `make test`, which a reviewer expects you to have run (they are not wired into
+  CI). `uv lock --check` when you touched `uv.lock`.
 
 Guidance that review will hold you to:
 
