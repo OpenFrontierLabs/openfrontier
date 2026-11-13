@@ -101,22 +101,14 @@ pub fn run_captured(argv: &[String], timeout: Duration) -> (i32, String) {
     // ubs:ignore[rust.security.command-executable] -- trusted operator CLI: the executable is caller/config argv (git, uv, python, upstream trainers), the tool's purpose; no shell, no lower-trust input, same as the Python subprocess.run it replaces.
     let mut cmd = Command::new(program);
     cmd.args(rest).stdout(Stdio::piped()).stderr(Stdio::null());
-    let Ok(mut child) = cmd.spawn() else {
+    let Ok(child) = cmd.spawn() else {
         return (HELPER_FAIL_CODE, String::new());
     };
-    let Some(code) = poll_child(&mut child, timeout) else {
-        return (HELPER_FAIL_CODE, String::new());
-    };
-    let stdout = child
-        .stdout
-        .take()
-        .map(|mut pipe| {
-            let mut buf = String::new();
-            let _ = pipe.read_to_string(&mut buf);
-            buf
-        })
-        .unwrap_or_default();
-    (code, stdout.trim().to_owned())
+    // Drain while waiting so a large stdout cannot deadlock the child (same shape as wait_piped).
+    match wait_piped(child, timeout) {
+        Ok(out) if !out.timed_out => (out.code, out.stdout.trim().to_owned()),
+        _ => (HELPER_FAIL_CODE, String::new()),
+    }
 }
 
 /// Build the configured command with inherited stdio.

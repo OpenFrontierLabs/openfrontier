@@ -17,7 +17,7 @@ const GIT_TIMEOUT: Duration = Duration::from_secs(900);
 /// A pinned commit: 40 lowercase hex digits.
 #[expect(clippy::expect_used, reason = "the regex literal is compile-time valid")]
 // ubs:ignore[rust.perf.regex-new,rust.ownership.unwrap-expect] -- compiled once in a LazyLock static; the expect is on a compile-time-valid literal, not runtime input.
-static SHA_RE: LazyLock<Regex> =
+pub(crate) static SHA_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new("^[0-9a-f]{40}$").expect("static regex is valid"));
 
 /// One pinned upstream from `configs/upstreams.toml`.

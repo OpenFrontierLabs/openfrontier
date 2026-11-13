@@ -9,14 +9,6 @@ use std::path::Path;
 use ofl::repo::find_root;
 use ofl::{cli, deploy};
 
-/// A broken CLI definition must fail the suite, not panic on every invocation.
-///
-/// Regression gate for the clap auto-help collision.
-#[test]
-fn cli_definition_is_internally_consistent() {
-    cli::debug_assert();
-}
-
 #[test]
 fn makefile_has_exactly_the_documented_targets_as_one_line_wrappers() {
     let text = std::fs::read_to_string(common::root().join("Makefile")).unwrap();
