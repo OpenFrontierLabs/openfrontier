@@ -1,0 +1,407 @@
+{
+  "date": "2026-11-14",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) Ultra 9 290HX Plus, 24 logical CPUs",
+    "python": "3.14.7",
+    "os": "Linux"
+  },
+  "command": "python3 experiments/cram/train.py",
+  "seed": 0,
+  "split": {
+    "orbits": 12,
+    "heldout_orbit_ids": [
+      2,
+      4,
+      6
+    ],
+    "train_solutions": 68,
+    "heldout_solutions": 24
+  },
+  "train_config": {
+    "objective": "pseudolikelihood",
+    "steps": 3000,
+    "lr": 2.0,
+    "momentum": 0.9,
+    "schedule": "cosine",
+    "init": "zeros"
+  },
+  "params": 113,
+  "timing_s": {
+    "train_and_threshold": 19.301,
+    "verifier_eval": 0.781,
+    "solver_eval": 2.207
+  },
+  "loss_curve": [
+    [
+      0,
+      0.693147
+    ],
+    [
+      300,
+      0.001305
+    ],
+    [
+      600,
+      0.000796
+    ],
+    [
+      900,
+      0.000591
+    ],
+    [
+      1200,
+      0.000485
+    ],
+    [
+      1500,
+      0.000425
+    ],
+    [
+      1800,
+      0.00039
+    ],
+    [
+      2100,
+      0.00037
+    ],
+    [
+      2400,
+      0.00036
+    ],
+    [
+      2700,
+      0.000356
+    ],
+    [
+      2999,
+      0.000355
+    ]
+  ],
+  "threshold": {
+    "tol": 0.5,
+    "learned": -22.1784,
+    "hand_set": -8.0
+  },
+  "energies": {
+    "train_min": -26.5355,
+    "train_max": -22.6784,
+    "heldout_min": -24.5916,
+    "heldout_max": -20.6714
+  },
+  "learned_couplings": {
+    "row": {
+      "count": 7,
+      "min": 2.728,
+      "mean": 5.29,
+      "max": 6.741
+    },
+    "column": {
+      "count": 7,
+      "min": 2.728,
+      "mean": 5.29,
+      "max": 6.741
+    },
+    "diagonal": {
+      "count": 14,
+      "min": 0.222,
+      "mean": 1.888,
+      "max": 3.586
+    },
+    "non_attacking": {
+      "count": 84,
+      "min": -1.636,
+      "mean": -0.706,
+      "max": 0.581
+    },
+    "bias": 0.599
+  },
+  "verifier": {
+    "learned": {
+      "train_accept": {
+        "n": 68,
+        "count": 68,
+        "rate": 1.0
+      },
+      "heldout_accept": {
+        "n": 24,
+        "count": 8,
+        "rate": 0.333333
+      },
+      "invalid": {
+        "empty": {
+          "n": 1,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 22.1784
+        },
+        "missing_queen": {
+          "n": 736,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 2.1508
+        },
+        "extra_queen": {
+          "n": 5152,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 1.3976
+        },
+        "row_shift": {
+          "n": 5136,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 1.6388
+        },
+        "permutation": {
+          "n": 2000,
+          "count": 3,
+          "rate": 0.0015,
+          "min_energy_minus_threshold": -1.1581
+        },
+        "random_8": {
+          "n": 2000,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 14.3015
+        },
+        "random_density": {
+          "n": 2000,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 11.8831
+        }
+      },
+      "invalid_all": {
+        "n": 17025,
+        "count": 3,
+        "rate": 0.000176
+      }
+    },
+    "hand_set": {
+      "train_accept": {
+        "n": 68,
+        "count": 68,
+        "rate": 1.0
+      },
+      "heldout_accept": {
+        "n": 24,
+        "count": 24,
+        "rate": 1.0
+      },
+      "invalid": {
+        "empty": {
+          "n": 1,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 8.0
+        },
+        "missing_queen": {
+          "n": 736,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 1.0
+        },
+        "extra_queen": {
+          "n": 5152,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 3.0
+        },
+        "row_shift": {
+          "n": 5136,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 2.0
+        },
+        "permutation": {
+          "n": 2000,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 2.0
+        },
+        "random_8": {
+          "n": 2000,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 6.0
+        },
+        "random_density": {
+          "n": 2000,
+          "count": 0,
+          "rate": 0.0,
+          "min_energy_minus_threshold": 2.0
+        }
+      },
+      "invalid_all": {
+        "n": 17025,
+        "count": 0,
+        "rate": 0.0
+      }
+    }
+  },
+  "tolerance_sweep_learned": [
+    {
+      "tol": 0.0,
+      "heldout_accept": 0.333333,
+      "invalid_false_accept": 0.000117
+    },
+    {
+      "tol": 0.25,
+      "heldout_accept": 0.333333,
+      "invalid_false_accept": 0.000117
+    },
+    {
+      "tol": 0.5,
+      "heldout_accept": 0.333333,
+      "invalid_false_accept": 0.000176
+    },
+    {
+      "tol": 1.0,
+      "heldout_accept": 0.666667,
+      "invalid_false_accept": 0.000294
+    },
+    {
+      "tol": 1.5,
+      "heldout_accept": 0.666667,
+      "invalid_false_accept": 0.000294
+    },
+    {
+      "tol": 2.0,
+      "heldout_accept": 0.666667,
+      "invalid_false_accept": 0.001057
+    }
+  ],
+  "solver": {
+    "method": "random-scan Gibbs, clues clamped, init: clue queens only",
+    "beta": {
+      "learned": 1.0,
+      "hand_set": 2.0
+    },
+    "chains": 20,
+    "max_updates_per_chain": 2000,
+    "learned": {
+      "clues_2": {
+        "puzzles": 72,
+        "solved": {
+          "n": 72,
+          "count": 34,
+          "rate": 0.472222
+        },
+        "wrong_halt": {
+          "n": 72,
+          "count": 37,
+          "rate": 0.513889
+        },
+        "miss_budget_exhausted": {
+          "n": 72,
+          "count": 1,
+          "rate": 0.013889
+        },
+        "miss_but_lowest_energy_board_valid": 1,
+        "mean_updates": 4101.7
+      },
+      "clues_4": {
+        "puzzles": 72,
+        "solved": {
+          "n": 72,
+          "count": 25,
+          "rate": 0.347222
+        },
+        "wrong_halt": {
+          "n": 72,
+          "count": 16,
+          "rate": 0.222222
+        },
+        "miss_budget_exhausted": {
+          "n": 72,
+          "count": 31,
+          "rate": 0.430556
+        },
+        "miss_but_lowest_energy_board_valid": 27,
+        "mean_updates": 18881.8
+      },
+      "clues_6": {
+        "puzzles": 72,
+        "solved": {
+          "n": 72,
+          "count": 24,
+          "rate": 0.333333
+        },
+        "wrong_halt": {
+          "n": 72,
+          "count": 0,
+          "rate": 0.0
+        },
+        "miss_budget_exhausted": {
+          "n": 72,
+          "count": 48,
+          "rate": 0.666667
+        },
+        "miss_but_lowest_energy_board_valid": 48,
+        "mean_updates": 26717.3
+      }
+    },
+    "hand_set": {
+      "clues_2": {
+        "puzzles": 72,
+        "solved": {
+          "n": 72,
+          "count": 72,
+          "rate": 1.0
+        },
+        "wrong_halt": {
+          "n": 72,
+          "count": 0,
+          "rate": 0.0
+        },
+        "miss_budget_exhausted": {
+          "n": 72,
+          "count": 0,
+          "rate": 0.0
+        },
+        "miss_but_lowest_energy_board_valid": 0,
+        "mean_updates": 3696.7
+      },
+      "clues_4": {
+        "puzzles": 72,
+        "solved": {
+          "n": 72,
+          "count": 72,
+          "rate": 1.0
+        },
+        "wrong_halt": {
+          "n": 72,
+          "count": 0,
+          "rate": 0.0
+        },
+        "miss_budget_exhausted": {
+          "n": 72,
+          "count": 0,
+          "rate": 0.0
+        },
+        "miss_but_lowest_energy_board_valid": 0,
+        "mean_updates": 859.8
+      },
+      "clues_6": {
+        "puzzles": 72,
+        "solved": {
+          "n": 72,
+          "count": 72,
+          "rate": 1.0
+        },
+        "wrong_halt": {
+          "n": 72,
+          "count": 0,
+          "rate": 0.0
+        },
+        "miss_budget_exhausted": {
+          "n": 72,
+          "count": 0,
+          "rate": 0.0
+        },
+        "miss_but_lowest_energy_board_valid": 0,
+        "mean_updates": 223.9
+      }
+    }
+  }
+}

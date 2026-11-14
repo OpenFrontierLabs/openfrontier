@@ -43,3 +43,4 @@ Numbers are permanent and never reused. Filenames do not change after merge.
 | RFC | Title | Status |
 | --- | --- | --- |
 | [0001](0001-milestone-ladder-and-first-diloco-proof-run.md) | Milestone ladder and first DiLoCo proof run | proposed |
+| [0002](0002-energy-based-constraint-reasoners-cram.md) | Energy-based constraint reasoners (CRAM) as verifiers and an eval-hygiene track | draft |
