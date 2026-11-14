@@ -32,15 +32,6 @@ def cpu_description() -> str:
 HERE = Path(__file__).resolve().parent
 
 
-def resolve_out_path(path: Path) -> Path:
-    """Keep --out inside this experiment directory."""
-    out = path.expanduser()
-    out = out.resolve() if out.is_absolute() else (HERE / out).resolve()
-    if not out.is_relative_to(HERE):
-        raise SystemExit(f"--out must stay under {HERE}, got {out}")
-    return out
-
-
 def split_by_orbit(seed: int, heldout_orbits: int):
     """Hold out whole symmetry orbits, so no held-out board is a rotation or mirror of a
     training board. Training is single-threaded and deterministic; the split is seeded."""
@@ -180,9 +171,8 @@ def main(argv: list[str] | None = None) -> int:
         default=2.0,
         help="solver inverse temperature, hand-set energy",
     )
-    p.add_argument("--out", type=Path, default=HERE / "results.json")
     args = p.parse_args(argv)
-    args.out = resolve_out_path(args.out)
+    out_path = HERE / "results.json"
 
     train, test, held, n_orbits = split_by_orbit(args.seed, args.heldout_orbits)
     cfg = q.TrainConfig(steps=args.steps, lr=args.lr, momentum=args.momentum)
@@ -288,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
             **solver,
         },
     }
-    args.out.write_text(json.dumps(results, indent=2) + "\n")
+    out_path.write_text(json.dumps(results, indent=2) + "\n")
     print(
         json.dumps(
             {k: results[k] for k in ("params", "timing_s", "threshold", "energies")},
@@ -303,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"learned solver {name}: solved {s['solved']['rate']}, wrong halt {s['wrong_halt']['rate']}, miss {s['miss_budget_exhausted']['rate']}"
         )
-    print(f"wrote {args.out}")
+    print(f"wrote {out_path}")
     return 0
 
 

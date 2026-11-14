@@ -123,13 +123,11 @@ class TrainedVerifierTests(unittest.TestCase):
 
 
 class PathTests(unittest.TestCase):
-    def test_out_path_must_stay_in_experiment_dir(self):
+    def test_results_path_is_fixed_in_the_experiment_dir(self):
         import train as tr
 
-        inside = tr.resolve_out_path(Path("results.json"))
-        self.assertEqual(inside, tr.HERE / "results.json")
-        with self.assertRaises(SystemExit):
-            tr.resolve_out_path(Path("/tmp/cram-results.json"))
+        self.assertEqual(tr.HERE, Path(tr.__file__).resolve().parent)
+        self.assertEqual(tr.HERE.name, "cram")
 
 
 if __name__ == "__main__":
