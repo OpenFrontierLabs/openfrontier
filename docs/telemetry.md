@@ -30,7 +30,7 @@ Client configuration:
 - No `contexts` feature (`ContextIntegration` is not compiled in, so OS kernel/version, device model/arch, and hostnames are not collected)
 - Default integrations limited to `AttachStacktraceIntegration`, `PanicIntegration`, and `ProcessStacktraceIntegration` (no `contexts`, `debug-images`, `logs`, or `metrics`).
 
-Server-side project setting: the `ofl` Sentry project enables **Prevent Storing of IP Addresses** so Sentry discards the transport connection IP rather than storing IP or geolocation fields (the HTTPS request still reaches `sentry.io`).
+Server-side project setting: the `ofl` Sentry project enables **Prevent Storing of IP Addresses** so Sentry discards the transport connection IP address rather than storing it (Sentry still derives coarse country/region metadata from the HTTPS connection to `sentry.io`).
 
 Before any event is sent, `before_send` (`ofl::telemetry::scrub_event`) removes or redacts:
 
