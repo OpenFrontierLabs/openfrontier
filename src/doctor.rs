@@ -644,6 +644,17 @@ fn https_probe(host: &str) -> HttpsProbe {
     }
 }
 
+/// Whether a body-read error is a timeout. `ureq` 3 reports its own `Error::Timeout`
+/// (the global timeout) as an `io::Error` of kind `Other` wrapping the `ureq` error, so the
+/// kind alone is not enough.
+#[must_use]
+pub fn is_timeout(e: &std::io::Error) -> bool {
+    e.kind() == std::io::ErrorKind::TimedOut
+        || e.get_ref()
+            .and_then(|inner| inner.downcast_ref::<ureq::Error>())
+            .is_some_and(|err| matches!(err, ureq::Error::Timeout(_)))
+}
+
 /// One bounded download of [`BANDWIDTH_URL`]: at most [`BANDWIDTH_CAP_BYTES`] and
 /// [`BANDWIDTH_DEADLINE`] after the request starts. A stall past the deadline keeps the
 /// bytes already received; no data at all is an error.
@@ -683,7 +694,7 @@ fn bandwidth_probe() -> BandwidthProbe {
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
             // Only a timeout is a time-limited measurement; any other read error (a reset,
             // say) is a failure whatever the elapsed time, and must not read as a clean result.
-            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+            Err(e) if is_timeout(&e) => {
                 probe.timed_out = true;
                 break;
             }

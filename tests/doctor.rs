@@ -5,7 +5,8 @@
 use std::path::Path;
 
 use ofl::doctor::{
-    BandwidthProbe, Host, HttpsProbe, Row, TorchInfo, collect, exit_code, parse_torch_info,
+    BandwidthProbe, Host, HttpsProbe, Row, TorchInfo, collect, exit_code, is_timeout,
+    parse_torch_info,
 };
 
 /// A fixed "now" for clock-skew tests: 2026-11-12T12:00:00Z.
@@ -375,4 +376,16 @@ fn one_stale_cached_date_does_not_trigger_a_clock_warning() {
     assert_eq!(clock.status, "ok");
     assert!(clock.detail.contains("+0.0 s"));
     assert_eq!(by_name(&collect(&fake_host(), Path::new(".")))["clock"].status, "ok");
+}
+
+#[test]
+fn only_timeouts_count_as_hitting_the_bandwidth_time_limit() {
+    use std::io::{Error, ErrorKind};
+    // ureq 3 wraps its global timeout as io::ErrorKind::Other around the ureq error.
+    assert!(is_timeout(&ureq::Error::Timeout(ureq::Timeout::Global).into_io()));
+    assert!(is_timeout(&Error::from(ErrorKind::TimedOut)));
+    // A reset, an unrelated wrapped ureq error and a plain Other are failures, not time limits.
+    assert!(!is_timeout(&Error::from(ErrorKind::ConnectionReset)));
+    assert!(!is_timeout(&ureq::Error::ConnectionFailed.into_io()));
+    assert!(!is_timeout(&Error::other("boom")));
 }
