@@ -1,6 +1,8 @@
 # Data manifest. Dataset ids, licences and revisions as read from the Hugging Face API
-# (https://huggingface.co/api/datasets/<id>) on 2026-11-12. No content hashes are recorded
-# because none were computed: a revision is a Hugging Face git commit, nothing more.
+# (https://huggingface.co/api/datasets/<id>) on 2026-11-12. A revision is a Hugging Face git
+# commit, not a content hash. Every [[dataset]] must carry "sha256": 64 lowercase hex chars,
+# or "pending: <reason>" when the hash cannot be known yet. `ofl check` fails on a missing
+# or malformed value. No content has been downloaded, so every entry is currently pending.
 # "licence" is what the dataset card metadata says. It is not a legal audit of every
 # source inside the dataset.
 
@@ -13,6 +15,7 @@ gated = false
 phase = "phase1-dense, phase1-moe"
 format = "parquet text; must be tokenised before OLMo-core or Megatron can read it"
 note = "Cite: ODC-By requires attribution. Tokenisation is not built into ofl; see docs/run0.md."
+sha256 = "pending: nothing downloaded or hashed yet; the dataset is a multi-file Hugging Face repository, so a single digest needs a decision on a per-file list"
 
 [[dataset]]
 id = "allenai/dolma3_mix-6T-1025-7B"
@@ -23,6 +26,7 @@ gated = false
 phase = "phase1-dense (reference)"
 format = "Dolma 3 pretraining mix"
 note = "The Run 0 default reads the pre-tokenised shards named by the OLMo-core mix file OLMo-mix-0625-official (see [[mix]] below), not this repository directly."
+sha256 = "pending: nothing downloaded or hashed yet; Run 0 reads the [[mix]] shards instead, whose hashes are not recorded either"
 
 [[dataset]]
 id = "allenai/dolma3_dolmino_mix-100B-1125"
@@ -32,6 +36,7 @@ licence = "ODC-By 1.0 (card metadata)"
 gated = false
 phase = "phase1-dense (later stage, not used by Run 0)"
 format = "Dolma 3 mid-training mix"
+sha256 = "pending: nothing downloaded or hashed yet; the dataset is a multi-file Hugging Face repository"
 
 [[dataset]]
 id = "allenai/dolma3_longmino_mix-100B-1125"
@@ -41,6 +46,7 @@ licence = "ODC-By 1.0 (card metadata)"
 gated = false
 phase = "phase1-dense (later stage, not used by Run 0)"
 format = "Dolma 3 long-context mix"
+sha256 = "pending: nothing downloaded or hashed yet; the dataset is a multi-file Hugging Face repository"
 
 [[mix]]
 name = "OLMo-mix-0625-official"
@@ -78,6 +84,7 @@ gated = false
 phase = "phase3-diloco"
 format = "pre-shuffled FineWeb-Edu parquet shards with a `text` column, the format prime-diloco reads"
 note = "Derived from HuggingFaceFW/fineweb-edu; the pinned upstream's README downloads it with scripts/subset_data.py."
+sha256 = "pending: nothing downloaded or hashed yet; the dataset is a multi-file Hugging Face repository"
 
 [[tokenizer]]
 id = "mistralai/Mistral-7B-v0.1"

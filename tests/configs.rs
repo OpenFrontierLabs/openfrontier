@@ -126,6 +126,57 @@ fn manifest_revision_must_be_a_commit() {
     assert!(configs::check(&tree).iter().any(|p| p.contains("not a 40-hex")));
 }
 
+const FINEWEB_SHA256: &str = "sha256 = \"pending: nothing downloaded or hashed yet; the dataset is a multi-file Hugging Face repository, so a single digest needs a decision on a per-file list\"\n";
+
+/// Check a copied tree whose first `[[dataset]]` (fineweb-edu) has its `sha256` line replaced.
+fn problems_with_fineweb_sha256(replacement: &str) -> Vec<String> {
+    let tmp = tempfile::tempdir().unwrap();
+    let tree = copy_tree(tmp.path());
+    let path = tree.join("manifests/datasets.toml");
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains(FINEWEB_SHA256), "fixture line moved; update FINEWEB_SHA256");
+    std::fs::write(&path, text.replacen(FINEWEB_SHA256, replacement, 1)).unwrap();
+    configs::check(&tree)
+}
+
+#[test]
+fn dataset_without_sha256_names_entry_and_field() {
+    let problems = problems_with_fineweb_sha256("");
+    assert_eq!(
+        problems,
+        ["manifests/datasets.toml: [[dataset]] HuggingFaceFW/fineweb-edu missing \"sha256\""]
+    );
+}
+
+#[test]
+fn dataset_sha256_must_be_lowercase_64_hex_or_pending_with_reason() {
+    let good = "a".repeat(64);
+    for bad in [
+        "abc123".to_string(),
+        "a".repeat(63),
+        "a".repeat(65),
+        "A".repeat(64),
+        "g".repeat(64),
+        String::new(),
+        "pending:".to_string(),
+        "pending:   ".to_string(),
+        "pending".to_string(),
+    ] {
+        let problems = problems_with_fineweb_sha256(&format!("sha256 = \"{bad}\"\n"));
+        assert_eq!(problems.len(), 1, "sha256 {bad:?}: {problems:?}");
+        assert!(
+            problems[0].contains("HuggingFaceFW/fineweb-edu") && problems[0].contains("sha256"),
+            "sha256 {bad:?}: {problems:?}"
+        );
+    }
+    let non_string = problems_with_fineweb_sha256("sha256 = 12\n");
+    assert_eq!(non_string.len(), 1, "{non_string:?}");
+    for ok in [good.as_str(), "pending: waiting on the first download"] {
+        let problems = problems_with_fineweb_sha256(&format!("sha256 = \"{ok}\"\n"));
+        assert_eq!(problems, Vec::<String>::new(), "sha256 {ok:?}");
+    }
+}
+
 #[test]
 fn unparseable_config_is_reported() {
     let tmp = tempfile::tempdir().unwrap();

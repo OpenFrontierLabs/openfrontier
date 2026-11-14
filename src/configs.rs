@@ -352,7 +352,7 @@ fn check_smoke_loads(root: &Path) -> Vec<String> {
     out
 }
 
-/// Manifest entries need their required keys and 40-hex revisions.
+/// Manifest entries need their required keys, 40-hex revisions and valid `sha256` values.
 fn check_manifests(root: &Path) -> Vec<String> {
     let path = root.join("manifests").join("datasets.toml");
     let rel = "manifests/datasets.toml";
@@ -362,7 +362,7 @@ fn check_manifests(root: &Path) -> Vec<String> {
     };
     let mut out = Vec::new();
     for (kind, required) in [
-        ("dataset", ["id", "url", "revision", "licence"].as_slice()),
+        ("dataset", ["id", "url", "revision", "licence", "sha256"].as_slice()),
         ("tokenizer", ["id", "url", "revision", "licence"].as_slice()),
         ("mix", ["name", "defined-in", "path"].as_slice()),
     ] {
@@ -399,8 +399,27 @@ fn check_manifest_kind(raw: &toml::Table, rel: &str, kind: &str, required: &[&st
             // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
             out.push(format!("{rel}: [[{kind}]] {ident} revision is not a 40-hex commit"));
         }
+        if let Some(value) = entry.get("sha256")
+            && !is_sha256_field(value)
+        {
+            // ubs:ignore[rust.perf.string-alloc-in-loop] -- diagnostic message construction, not a hot path.
+            out.push(format!(
+                "{rel}: [[{kind}]] {ident} sha256 must be 64 lowercase hex chars or \"pending: <reason>\""
+            ));
+        }
     }
     out
+}
+
+/// A content hash (64 lowercase hex chars) or `pending:` followed by a non-empty reason.
+fn is_sha256_field(v: &toml::Value) -> bool {
+    let Some(s) = v.as_str() else {
+        return false;
+    };
+    if let Some(reason) = s.strip_prefix("pending:") {
+        return !reason.trim().is_empty();
+    }
+    s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Sorted `*.toml` files directly inside `dir`.
