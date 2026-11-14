@@ -65,11 +65,25 @@ Bigger, hard-to-reverse changes start as an [RFC](rfcs/README.md). The milestone
 
 Code, compute and results are all welcome. [CONTRIBUTING.md](CONTRIBUTING.md) says how; [docs/join-a-node.md](docs/join-a-node.md) says plainly what works today (single-node phase 1 runs) and what is planned but not built (joining a shared DiLoCo run).
 
+## Telemetry
+
+Prebuilt releases of `ofl` can include opt-out crash and unexpected-error reporting via [Sentry](https://sentry.io) when compiled with `OFL_SENTRY_DSN` set. Building from source without `OFL_SENTRY_DSN` makes telemetry a no-op; no DSN is committed to this repository.
+
+Opt out at runtime using any of (highest precedence first):
+
+- Global CLI flag: `ofl --no-telemetry <command>`
+- Environment variable: `OFL_TELEMETRY=0` (also accepts `false` or `off`)
+- Standard opt-out: `DO_NOT_TRACK=1`
+
+You can also compile `ofl` without the `sentry` crate at all: `cargo build --no-default-features`.
+
+Privacy guarantees (`send_default_pii = false`, no traces, no session tracking): before any event leaves the machine, `before_send` strips `user`, `request`, IP addresses, `server_name`/hostnames, environment variables, working directory paths, secret CLI flags, and replaces `$HOME` and local usernames with `~`. See [docs/telemetry.md](docs/telemetry.md) for details.
+
 ## Links
 
 - Organisation: <https://github.com/OpenFrontierLabs>
 - [Manifesto](MANIFESTO.md), [Architecture](docs/ARCHITECTURE.md), [Governance](GOVERNANCE.md), [Credits](CREDITS.md), [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Discord](https://discord.gg/M4sD8T5M8D), [Discussions](https://github.com/OpenFrontierLabs/openfrontier/discussions), [Roadmap](https://github.com/orgs/OpenFrontierLabs/projects/1), [Security policy](SECURITY.md), [Glossary](docs/GLOSSARY.md)
+- [Discord](https://discord.gg/M4sD8T5M8D), [Discussions](https://github.com/OpenFrontierLabs/openfrontier/discussions), [Roadmap](https://github.com/orgs/OpenFrontierLabs/projects/1), [Security policy](SECURITY.md), [Glossary](docs/GLOSSARY.md), [Telemetry](docs/telemetry.md)
 - Cite this work: [CITATION.cff](CITATION.cff)
 - Founding steward: [@bradlishman](https://github.com/bradlishman)
 

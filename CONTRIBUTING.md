@@ -43,6 +43,7 @@ Rules of the road:
 - Do not vendor upstream code.
 - Do not add a command that pretends to work. If it is not built, make it fail with a message that says so.
 - Keep changes small and say what you ran. Tests that only check wiring are not wanted; tests that catch real bugs are.
+- Telemetry (`src/telemetry.rs`): never commit a Sentry DSN (it is read only from `OFL_SENTRY_DSN` at compile time), never attach user, IP, hostname, `cwd`, environment variables, or unredacted CLI arguments, and keep opt-out (`--no-telemetry`, `OFL_TELEMETRY=0`, `DO_NOT_TRACK=1`) and `--no-default-features` working. Hardening scrubbing or opt-out checks does not require an RFC.
 
 Merged work earns commit rights on that repository ([GOVERNANCE.md](GOVERNANCE.md)).
 

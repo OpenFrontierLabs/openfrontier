@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 
 use crate::error::{OflError, Result};
 use crate::repo::find_root;
-use crate::{deploy, doctor, moe, phases, run0, swarm, tasks, upstreams};
+use crate::{deploy, doctor, moe, phases, run0, swarm, tasks, telemetry, upstreams};
 
 /// Make-target descriptions, in `make help` order.
 pub const TARGETS: [(&str, &str); 11] = [
@@ -28,6 +28,9 @@ pub const TARGETS: [(&str, &str); 11] = [
 #[derive(Parser)]
 #[command(name = "ofl", about = "Open Frontier Labs command line.", disable_help_subcommand = true)]
 struct Cli {
+    /// Disable crash and error telemetry for this invocation.
+    #[arg(long, global = true)]
+    no_telemetry: bool,
     #[command(subcommand)]
     command: Command,
 }
@@ -100,6 +103,9 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// Send one test telemetry event and flush (hidden; for verification).
+    #[command(name = "telemetry-test", hide = true)]
+    TelemetryTest,
 }
 
 /// Run 0 actions.
@@ -180,9 +186,13 @@ enum UnbuiltAction {
 /// Parse, dispatch, report. Returns the process exit code.
 pub fn main() -> ExitCode {
     let cli = Cli::parse();
-    match dispatch(cli.command) {
+    let telemetry = telemetry::init(cli.no_telemetry);
+    match dispatch(cli.command, &telemetry) {
         Ok(code) => exit_code(code),
         Err(e) => {
+            if e.code != 2 {
+                telemetry::capture_error(&e);
+            }
             // ubs:ignore[rust.ownership.eprintln-macro] -- a CLI's user-facing error channel; no logging framework is warranted for a single-binary tool.
             eprintln!("ofl: {e}");
             exit_code(i32::from(e.code))
@@ -196,7 +206,7 @@ fn exit_code(code: i32) -> ExitCode {
 }
 
 /// Run one command.
-fn dispatch(command: Command) -> Result<i32> {
+fn dispatch(command: Command, telemetry: &telemetry::TelemetryGuard) -> Result<i32> {
     match command {
         Command::Setup => tasks::setup(),
         Command::Dev => tasks::dev(),
@@ -217,7 +227,19 @@ fn dispatch(command: Command) -> Result<i32> {
         Command::Diloco { action: UnbuiltAction::Launch } => phases::not_built("diloco"),
         Command::Swarm { args } => swarm::forward("swarm", &args),
         Command::Node { args } => swarm::forward("node", &args),
+        Command::TelemetryTest => Ok(telemetry_test(telemetry)),
     }
+}
+
+/// Send one test telemetry event and print whether telemetry was active.
+// ubs:ignore[rust.ownership.println-macro] -- user-facing CLI status output for telemetry-test.
+fn telemetry_test(guard: &telemetry::TelemetryGuard) -> i32 {
+    if telemetry::send_test_event(guard) {
+        println!("telemetry test event sent");
+    } else {
+        println!("telemetry disabled (no event sent)");
+    }
+    0
 }
 
 /// Run 0 dispatch.
@@ -320,12 +342,26 @@ fn list_upstreams() -> Result<i32> {
 
 #[cfg(test)]
 mod tests {
-    use clap::CommandFactory;
+    use clap::{CommandFactory, Parser};
 
     /// A broken parser definition must fail the suite, not panic on every
     /// invocation (the clap auto-help collision regression).
     #[test]
     fn cli_definition_is_valid() {
         super::Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn no_telemetry_flag_parses_globally_and_telemetry_test_is_hidden() {
+        let cli_before = super::Cli::try_parse_from(["ofl", "--no-telemetry", "help"]);
+        assert!(cli_before.is_ok_and(|c| c.no_telemetry));
+
+        let cli_after = super::Cli::try_parse_from(["ofl", "doctor", "--no-telemetry"]);
+        assert!(cli_after.is_ok_and(|c| c.no_telemetry));
+
+        let help_text = super::Cli::command().render_help().to_string();
+        assert!(!help_text.contains("telemetry-test"));
+
+        assert!(super::Cli::try_parse_from(["ofl", "telemetry-test"]).is_ok());
     }
 }
