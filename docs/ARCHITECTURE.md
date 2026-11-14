@@ -33,12 +33,12 @@ Today: `ofl doctor` (`src/doctor.rs`) checks Python, torch, GPU (NVIDIA CUDA, AM
 
 Planned: a local app on contributor machines with hardware discovery, resource limits, checkpoint recovery, local logs, a CLI plus desktop UI, and a signed device identity.
 
-Today: none of this exists. `ofl` (`src/cli.rs`) is a repo developer CLI: setup, checks, smoke tests and launchers; builds compiled with `OFL_SENTRY_DSN` include opt-out panic and unexpected-error telemetry ([telemetry.md](telemetry.md)). The planned `ofl join` described in [join-a-node.md](join-a-node.md) has no code.
+Today: almost none of this exists. `ofl` (`src/cli.rs`) is a repo developer CLI: setup, checks, smoke tests and launchers; builds compiled with `OFL_SENTRY_DSN` include opt-out panic and unexpected-error telemetry ([telemetry.md](telemetry.md)). The planned `ofl join` described in [join-a-node.md](join-a-node.md) has no code. The one piece that exists is `node/` (`ofl-node`): it generates and persists an Ed25519 device keypair and signs a small hardware report with it, nothing more ([node/README.md](../node/README.md)).
 
 **Next milestones**
 - Decide whether the node grows out of `ofl` or is a separate binary, and record the decision.
 - A headless node that runs an assigned Mode A worker under user-set GPU, memory and time limits, writing local logs.
-- Generate and persist a device keypair; sign the node's hardware report with it.
+- Add GPU fields to the signed hardware report.
 - Resume a worker from its last local checkpoint after a crash.
 - Desktop UI on top of the headless node.
 
