@@ -173,10 +173,10 @@ fn username_from_home(home: &str) -> Option<&str> {
 
 /// Decide whether telemetry is opted out.
 ///
-/// Precedence (highest first):
-/// 1. `--no-telemetry` CLI flag
-/// 2. `OFL_TELEMETRY` (`0`/`false`/`off`/`no` opts out; `1`/`true`/`on`/`yes` overrides `DO_NOT_TRACK`)
-/// 3. `DO_NOT_TRACK` (`1`/`true`/`on`/`yes` opts out)
+/// Any opt-out signal disables telemetry (`--no-telemetry`,
+/// `OFL_TELEMETRY=0|false|off|no`, or `DO_NOT_TRACK=1|true|on|yes`).
+/// An opt-out from any source is final and cannot be overridden by another
+/// variable (for example, `OFL_TELEMETRY=1` does not override `DO_NOT_TRACK=1`).
 #[must_use]
 pub fn is_opted_out(
     cli_no_telemetry: bool,
@@ -186,15 +186,15 @@ pub fn is_opted_out(
     if cli_no_telemetry {
         return true;
     }
-    if let Some(raw) = ofl_telemetry {
-        match raw.trim().to_ascii_lowercase().as_str() {
-            "0" | "false" | "off" | "no" => return true,
-            "1" | "true" | "on" | "yes" => return false,
-            _ => {}
-        }
+    if let Some(raw) = ofl_telemetry
+        && matches!(raw.trim().to_ascii_lowercase().as_str(), "0" | "false" | "off" | "no")
+    {
+        return true;
     }
-    if let Some(raw) = do_not_track {
-        return matches!(raw.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes");
+    if let Some(raw) = do_not_track
+        && matches!(raw.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes")
+    {
+        return true;
     }
     false
 }
@@ -398,7 +398,6 @@ mod sentry_impl {
     use sentry::integrations::backtrace::{
         AttachStacktraceIntegration, ProcessStacktraceIntegration,
     };
-    use sentry::integrations::contexts::ContextIntegration;
     use sentry::integrations::panic::PanicIntegration;
     use sentry::protocol::{Context, Event, Map, Stacktrace, Value};
     use sentry::types::Dsn;
@@ -427,7 +426,6 @@ mod sentry_impl {
 
         let integrations: Vec<Arc<dyn Integration>> = vec![
             Arc::new(AttachStacktraceIntegration),
-            Arc::new(ContextIntegration::new()),
             Arc::new(PanicIntegration::default()),
             Arc::new(ProcessStacktraceIntegration),
         ];
@@ -612,7 +610,10 @@ mod tests {
         }
         for on in ["1", "true", "on", "yes"] {
             assert!(!is_opted_out(false, Some(on), None), "{on:?} should allow");
-            assert!(!is_opted_out(false, Some(on), Some("1")), "{on:?} overrides DO_NOT_TRACK=1");
+            assert!(
+                is_opted_out(false, Some(on), Some("1")),
+                "DO_NOT_TRACK=1 is final even when OFL_TELEMETRY={on:?}"
+            );
         }
     }
 
@@ -622,6 +623,7 @@ mod tests {
         assert!(is_opted_out(false, None, Some("true")));
         assert!(is_opted_out(false, Some(""), Some("1")));
         assert!(is_opted_out(false, Some("maybe"), Some("1")));
+        assert!(is_opted_out(false, Some("1"), Some("1")));
         assert!(!is_opted_out(false, None, Some("0")));
         assert!(!is_opted_out(false, None, Some("false")));
         assert!(!is_opted_out(false, None, None));
