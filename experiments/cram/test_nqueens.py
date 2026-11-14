@@ -122,6 +122,13 @@ class TrainedVerifierTests(unittest.TestCase):
         self.assertLessEqual(q.energy(self.theta, best), self.threshold)
 
 
+class InvalidSetTests(unittest.TestCase):
+    def test_n_random_above_permutation_capacity_is_rejected(self):
+        rng = random.Random(0)
+        with self.assertRaises(ValueError):
+            q.invalid_sets(rng, q.MAX_PERMUTATION_INVALID + 1)
+
+
 class PathTests(unittest.TestCase):
     def test_results_path_is_fixed_in_the_experiment_dir(self):
         import train as tr

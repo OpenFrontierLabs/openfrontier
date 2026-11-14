@@ -27,9 +27,9 @@
   },
   "params": 113,
   "timing_s": {
-    "train_and_threshold": 19.301,
-    "verifier_eval": 0.781,
-    "solver_eval": 2.207
+    "train_and_threshold": 24.92,
+    "verifier_eval": 0.885,
+    "solver_eval": 3.224
   },
   "loss_curve": [
     [
@@ -284,41 +284,41 @@
         "puzzles": 72,
         "solved": {
           "n": 72,
-          "count": 34,
-          "rate": 0.472222
+          "count": 31,
+          "rate": 0.430556
         },
         "wrong_halt": {
           "n": 72,
-          "count": 37,
-          "rate": 0.513889
+          "count": 39,
+          "rate": 0.541667
         },
         "miss_budget_exhausted": {
           "n": 72,
-          "count": 1,
-          "rate": 0.013889
+          "count": 2,
+          "rate": 0.027778
         },
         "miss_but_lowest_energy_board_valid": 1,
-        "mean_updates": 4101.7
+        "mean_updates": 4054.1
       },
       "clues_4": {
         "puzzles": 72,
         "solved": {
           "n": 72,
-          "count": 25,
-          "rate": 0.347222
+          "count": 23,
+          "rate": 0.319444
         },
         "wrong_halt": {
           "n": 72,
-          "count": 16,
-          "rate": 0.222222
+          "count": 12,
+          "rate": 0.166667
         },
         "miss_budget_exhausted": {
           "n": 72,
-          "count": 31,
-          "rate": 0.430556
+          "count": 37,
+          "rate": 0.513889
         },
-        "miss_but_lowest_energy_board_valid": 27,
-        "mean_updates": 18881.8
+        "miss_but_lowest_energy_board_valid": 28,
+        "mean_updates": 22072.5
       },
       "clues_6": {
         "puzzles": 72,
@@ -329,16 +329,16 @@
         },
         "wrong_halt": {
           "n": 72,
-          "count": 0,
-          "rate": 0.0
+          "count": 1,
+          "rate": 0.013889
         },
         "miss_budget_exhausted": {
           "n": 72,
-          "count": 48,
-          "rate": 0.666667
+          "count": 47,
+          "rate": 0.652778
         },
-        "miss_but_lowest_energy_board_valid": 48,
-        "mean_updates": 26717.3
+        "miss_but_lowest_energy_board_valid": 47,
+        "mean_updates": 26267.4
       }
     },
     "hand_set": {
@@ -360,7 +360,7 @@
           "rate": 0.0
         },
         "miss_but_lowest_energy_board_valid": 0,
-        "mean_updates": 3696.7
+        "mean_updates": 3346.8
       },
       "clues_4": {
         "puzzles": 72,
@@ -380,7 +380,7 @@
           "rate": 0.0
         },
         "miss_but_lowest_energy_board_valid": 0,
-        "mean_updates": 859.8
+        "mean_updates": 1288.6
       },
       "clues_6": {
         "puzzles": 72,
@@ -400,7 +400,7 @@
           "rate": 0.0
         },
         "miss_but_lowest_energy_board_valid": 0,
-        "mean_updates": 223.9
+        "mean_updates": 185.0
       }
     }
   }

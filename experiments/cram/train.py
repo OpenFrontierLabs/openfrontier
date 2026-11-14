@@ -74,28 +74,37 @@ def verify(theta, threshold, train, test, invalid) -> dict:
     return out
 
 
-def run_solver(
-    theta, threshold, beta, test, clue_counts, puzzles_per, chains, max_updates, seed
-):
-    rng = random.Random(f"{seed}:solver")
-    out = {}
+def make_puzzles(test, clue_counts, puzzles_per, seed):
+    """Build one shared clue list so both energies are scored on the same puzzles."""
+    rng = random.Random(f"{seed}:puzzles")
+    puzzles = {}
     for k in clue_counts:
-        solved = wrong = miss = miss_valid = updates = 0
-        n = 0
+        items = []
         for board in test:
             queens = [i for i, x in enumerate(board) if x]
             for _ in range(puzzles_per):
-                clues = sorted(rng.sample(queens, k))
-                res = q.solve(theta, clues, threshold, rng, chains, max_updates, beta)
-                valid = q.is_solution(res.board) and all(res.board[c] for c in clues)
-                n += 1
-                updates += res.updates
-                if res.halted:
-                    solved += valid
-                    wrong += not valid
-                else:
-                    miss += 1
-                    miss_valid += valid
+                items.append((board, sorted(rng.sample(queens, k))))
+        puzzles[k] = items
+    return puzzles
+
+
+def run_solver(theta, threshold, beta, puzzles, chains, max_updates, seed, label):
+    out = {}
+    for k, items in puzzles.items():
+        rng = random.Random(f"{seed}:solver:{label}:clues_{k}")
+        solved = wrong = miss = miss_valid = updates = 0
+        n = 0
+        for board, clues in items:
+            res = q.solve(theta, clues, threshold, rng, chains, max_updates, beta)
+            valid = q.is_solution(res.board) and all(res.board[c] for c in clues)
+            n += 1
+            updates += res.updates
+            if res.halted:
+                solved += valid
+                wrong += not valid
+            else:
+                miss += 1
+                miss_valid += valid
         out[f"clues_{k}"] = {
             "puzzles": n,
             "solved": rate(solved, n),
@@ -172,6 +181,11 @@ def main(argv: list[str] | None = None) -> int:
         help="solver inverse temperature, hand-set energy",
     )
     args = p.parse_args(argv)
+    if args.n_random > q.MAX_PERMUTATION_INVALID:
+        raise SystemExit(
+            f"--n-random {args.n_random} exceeds the {q.MAX_PERMUTATION_INVALID} "
+            "invalid row-column permutations of an 8×8 board"
+        )
     out_path = HERE / "results.json"
 
     train, test, held, n_orbits = split_by_orbit(args.seed, args.heldout_orbits)
@@ -205,17 +219,28 @@ def main(argv: list[str] | None = None) -> int:
     verify_s = time.perf_counter() - t0
 
     t0 = time.perf_counter()
-    solver_args = (
-        test,
-        args.clues,
-        args.puzzles_per,
-        args.chains,
-        args.max_updates,
-        args.seed,
-    )
+    puzzles = make_puzzles(test, args.clues, args.puzzles_per, args.seed)
     solver = {
-        "learned": run_solver(theta, threshold, args.beta, *solver_args),
-        "hand_set": run_solver(hand, hand_threshold, args.hand_beta, *solver_args),
+        "learned": run_solver(
+            theta,
+            threshold,
+            args.beta,
+            puzzles,
+            args.chains,
+            args.max_updates,
+            args.seed,
+            "learned",
+        ),
+        "hand_set": run_solver(
+            hand,
+            hand_threshold,
+            args.hand_beta,
+            puzzles,
+            args.chains,
+            args.max_updates,
+            args.seed,
+            "hand_set",
+        ),
     }
     solve_s = time.perf_counter() - t0
 

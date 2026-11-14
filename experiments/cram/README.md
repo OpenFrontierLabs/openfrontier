@@ -35,14 +35,14 @@ python3 experiments/cram/test_nqueens.py  # unit tests, about 3 s
 
 ## Results
 
-One run of `python3 experiments/cram/train.py` (defaults, seed 0) on 2026-11-14, Linux, Python 3.14.7, Intel Core Ultra 9 290HX Plus laptop CPU, single-threaded. The host was busy with other work (load average 13–16), so wall-clock times are upper bounds. A second run gave an identical `results.json` apart from the timings. Full numbers: [`results.json`](results.json).
+One run of `python3 experiments/cram/train.py` (defaults, seed 0) on 2026-11-14, Linux, Python 3.14.7, Intel Core Ultra 9 290HX Plus laptop CPU, single-threaded. The host was busy with other work, so wall-clock times are upper bounds. After the first run, puzzle generation was split from search RNG so the learned and hand-set solvers see the same clue lists; verifier metrics were unchanged and only the solver table below was regenerated. Full numbers: [`results.json`](results.json).
 
 | Measure | Value |
 | --- | --- |
 | Parameters | 113 |
-| Train + threshold fit (3,000 full-batch steps on 68 boards) | 19.3 s |
-| Verifier evaluation (build invalid sets; score 92 valid and 17,025 invalid boards under both energies; tolerance sweep) | 0.8 s |
-| Solver evaluation (216 held-out puzzles × 2 energies) | 2.2 s |
+| Train + threshold fit (3,000 full-batch steps on 68 boards) | 24.9 s |
+| Verifier evaluation (build invalid sets; score 92 valid and 17,025 invalid boards under both energies; tolerance sweep) | 0.9 s |
+| Solver evaluation (216 held-out puzzles × 2 energies, shared precomputed clue lists) | 3.2 s |
 | Final PL loss (mean per cell) | 0.000355, from log 2 = 0.693 at zero weights |
 | Training-solution energies | −26.54 to −22.68 |
 | Held-out-solution energies | −24.59 to −20.67 |
@@ -68,15 +68,15 @@ Each held-out solution gives three clue draws per clue count, 72 puzzles per row
 
 | Clues | Learned: solved / wrong halt / miss | Hand-set: solved / wrong halt / miss |
 | --- | --- | --- |
-| 2 | 34 / **37** / 1 | 72 / 0 / 0 |
-| 4 | 25 / **16** / 31 | 72 / 0 / 0 |
-| 6 | 24 / 0 / **48** | 72 / 0 / 0 |
+| 2 | 31 / **39** / 2 | 72 / 0 / 0 |
+| 4 | 23 / **12** / 37 | 72 / 0 / 0 |
+| 6 | 24 / **1** / 47 | 72 / 0 / 0 |
 
-Learned solve rates: 47.2%, 34.7%, 33.3%. Hand-set: 100% at every clue count.
+Learned solve rates: 43.1%, 31.9%, 33.3%. Hand-set: 100% at every clue count.
 
 ### What failed, and why
 
-- **Held-out solutions are mostly rejected.** The threshold comes from training solutions, and held-out orbits sit up to 2.0 energy units above the highest training energy. The descent itself often finds them: 27 of the 31 four-clue misses and all 48 six-clue misses ended on a valid board whose energy was above the threshold. The learned costs memorize which non-attacking offsets co-occur in the training solutions (mean −0.71, range −1.64 to +0.58), so solutions built from other offset combinations score worse. This is the "memorize associations between pairs of valid cells" behaviour the paper describes, meeting a split that holds out whole symmetry orbits.
+- **Held-out solutions are mostly rejected.** The threshold comes from training solutions, and held-out orbits sit up to 2.0 energy units above the highest training energy. The descent itself often finds them: 28 of the 37 four-clue misses and all 47 six-clue misses ended on a valid board whose energy was above the threshold. The learned costs memorize which non-attacking offsets co-occur in the training solutions (mean −0.71, range −1.64 to +0.58), so solutions built from other offset combinations score worse. This is the "memorize associations between pairs of valid cells" behaviour the paper describes, meeting a split that holds out whole symmetry orbits.
 - **Diagonals are under-learned.** Row and column couplings are large (2.7 to 6.7), but diagonal couplings are weak (0.22 to 3.59, the longest diagonal 0.22). In a solution every empty square already shares a row and a column with a queen, so pseudolikelihood can explain each empty square without the diagonal rule. That is why the only false accepts are `permutation` boards, and why the wrong halts in the two- and four-clue solver runs (re-checked with the same seed) were 8-queen boards with one or two diagonal attacks, plus 8 boards with 9 queens and one row and one column attack.
 - The hand-set energy with two unique weights is exact under the same search: every held-out board accepted, no invalid board accepted, every puzzle solved. This matches the paper's caution that these puzzles fit a pairwise energy exactly. It is hand-set from the rules, not learned.
 - **Sparsity did not fix it in a probe.** An unshipped probe added proximal L1 on the couplings (λ = 1e-3, 3e-3, 1e-2, bias unpenalized) to the same recipe. It looked only at weights and training energies, not at held-out or invalid boards. At λ = 1e-3 the non-attacking couplings shrank to −0.25…0. From λ = 3e-3 they were all zero, the 68 training energies were identical, and the bias was negative (−4.1, then −2.9 at 1e-2). So every attack-free 8-queen board, held-out solutions included, scores 8·b. But the diagonal costs also shrank, to a mean of 0.57, 0.19 and 0.17, with some exactly zero. A board whose only attack is one such diagonal then scores within the 0.5 tolerance of 8·b, and would be accepted (derived from the weights, not run on the invalid set). Only these three λ values were tried. Within them, sparsity trades the held-out failure for the diagonal blind spot.

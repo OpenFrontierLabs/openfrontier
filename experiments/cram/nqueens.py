@@ -234,6 +234,9 @@ def fit_threshold(
 # --- Invalid boards for the verifier ---------------------------------------------------------
 
 
+MAX_PERMUTATION_INVALID = 40320 - 92  # 8! minus the 92 solutions
+
+
 def invalid_sets(rng: random.Random, n_random: int) -> dict[str, list[tuple[int, ...]]]:
     """Documented invalid boards. Every set is deduplicated and contains no solution."""
     sols = [list(s) for s in all_solutions()]
@@ -259,8 +262,8 @@ def invalid_sets(rng: random.Random, n_random: int) -> dict[str, list[tuple[int,
                         board_from_cols(tuple(cols[:r] + [c] + cols[r + 1 :]))
                     )
 
-    def fill(name: str, draw) -> None:
-        while len(sets[name]) < n_random:
+    def fill(name: str, draw, target: int) -> None:
+        while len(sets[name]) < target:
             board = draw()
             if not is_solution(board):
                 sets[name].add(board)
@@ -274,10 +277,17 @@ def invalid_sets(rng: random.Random, n_random: int) -> dict[str, list[tuple[int,
         squares = set(rng.sample(range(CELLS), N))
         return tuple(int(i in squares) for i in range(CELLS))
 
-    fill("permutation", perm)
-    fill("random_8", rand8)
+    if n_random > MAX_PERMUTATION_INVALID:
+        raise ValueError(
+            f"n_random={n_random} exceeds the {MAX_PERMUTATION_INVALID} invalid "
+            "row-column permutations of an 8×8 board; the permutation sampler would not halt"
+        )
+    fill("permutation", perm, n_random)
+    fill("random_8", rand8, n_random)
     fill(
-        "random_density", lambda: tuple(int(rng.random() < 1 / N) for _ in range(CELLS))
+        "random_density",
+        lambda: tuple(int(rng.random() < 1 / N) for _ in range(CELLS)),
+        n_random,
     )
     return {name: sorted(boards) for name, boards in sets.items()}
 
