@@ -681,12 +681,14 @@ fn bandwidth_probe() -> BandwidthProbe {
             Ok(0) => break,
             Ok(n) => probe.bytes += u64::try_from(n).unwrap_or(0),
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            // Only a timeout is a time-limited measurement; any other read error (a reset,
+            // say) is a failure whatever the elapsed time, and must not read as a clean result.
+            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                probe.timed_out = true;
+                break;
+            }
             Err(e) => {
-                if start.elapsed() >= BANDWIDTH_DEADLINE {
-                    probe.timed_out = true;
-                } else {
-                    probe.error = Some(e.to_string());
-                }
+                probe.error = Some(e.to_string());
                 break;
             }
         }
