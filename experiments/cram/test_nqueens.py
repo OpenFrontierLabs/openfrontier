@@ -127,6 +127,10 @@ class InvalidSetTests(unittest.TestCase):
         rng = random.Random(0)
         with self.assertRaises(ValueError):
             q.invalid_sets(rng, q.MAX_PERMUTATION_INVALID + 1)
+        with self.assertRaises(ValueError):
+            q.invalid_sets(rng, 0)
+        with self.assertRaises(ValueError):
+            q.invalid_sets(rng, -1)
 
 
 class PathTests(unittest.TestCase):

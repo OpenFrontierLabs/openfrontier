@@ -181,10 +181,11 @@ def main(argv: list[str] | None = None) -> int:
         help="solver inverse temperature, hand-set energy",
     )
     args = p.parse_args(argv)
-    if args.n_random > q.MAX_PERMUTATION_INVALID:
+    if args.n_random < 1 or args.n_random > q.MAX_PERMUTATION_INVALID:
         raise SystemExit(
-            f"--n-random {args.n_random} exceeds the {q.MAX_PERMUTATION_INVALID} "
-            "invalid row-column permutations of an 8×8 board"
+            f"--n-random must be between 1 and {q.MAX_PERMUTATION_INVALID} "
+            f"(the number of invalid row-column permutations of an 8×8 board), "
+            f"got {args.n_random}"
         )
     out_path = HERE / "results.json"
 

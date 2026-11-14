@@ -277,10 +277,9 @@ def invalid_sets(rng: random.Random, n_random: int) -> dict[str, list[tuple[int,
         squares = set(rng.sample(range(CELLS), N))
         return tuple(int(i in squares) for i in range(CELLS))
 
-    if n_random > MAX_PERMUTATION_INVALID:
+    if n_random < 1 or n_random > MAX_PERMUTATION_INVALID:
         raise ValueError(
-            f"n_random={n_random} exceeds the {MAX_PERMUTATION_INVALID} invalid "
-            "row-column permutations of an 8×8 board; the permutation sampler would not halt"
+            f"n_random must be between 1 and {MAX_PERMUTATION_INVALID}, got {n_random}"
         )
     fill("permutation", perm, n_random)
     fill("random_8", rand8, n_random)
