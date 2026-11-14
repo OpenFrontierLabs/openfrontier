@@ -184,6 +184,7 @@ enum UnbuiltAction {
 }
 
 /// Parse, dispatch, report. Returns the process exit code.
+#[must_use = "the exit code must be returned from the process entry point"]
 pub fn main() -> ExitCode {
     let mut cli = Cli::parse();
     let passthrough_opt_out = take_no_telemetry_from_passthrough(&mut cli.command);
