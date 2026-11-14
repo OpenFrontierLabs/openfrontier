@@ -87,7 +87,7 @@ Quantization, sparse/low-rank communication, checkpointing, fault tolerance, ver
 Planned: safetensors plus manifests, public checkpoints, datasets and shards, evidence receipts, an audit trail, Hugging Face plus mirrors, and Cloudflare R2.
 
 Today:
-- **Manifests**: dataset ids, licences and revisions in `manifests/datasets.toml`. Every dataset needs a `sha256` field (64 lowercase hex chars, or `pending: <reason>`), No content has been hashed yet, so every entry is `pending` and no content hashes are recorded today. Every upstream is pinned to a commit in `configs/upstreams.toml`, and `make check` validates both.
+- **Manifests**: dataset ids, licences and revisions in `manifests/datasets.toml`. Every dataset needs a `sha256` field (64 lowercase hex chars, or `pending: <reason>`). No content has been hashed yet, so every entry is `pending` and no content hashes are recorded today. Every upstream is pinned to a commit in `configs/upstreams.toml`, and `make check` validates both.
 - **Compute ledger** (`ledger/schema.json`, `src/ledger.rs`): a schema and validator for who contributed compute to a run. Only an example file exists; `helpful_update_share` has no producer. See [ledger/README.md](../ledger/README.md).
 - `ofl deploy --env huggingface` exits with `not implemented`. No checkpoints, receipts or uploads exist.
 
