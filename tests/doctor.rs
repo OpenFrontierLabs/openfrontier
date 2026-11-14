@@ -4,7 +4,9 @@
 
 use std::path::Path;
 
-use ofl::doctor::{Host, HttpsProbe, Row, TorchInfo, collect, exit_code, parse_torch_info};
+use ofl::doctor::{
+    BandwidthProbe, Host, HttpsProbe, Row, TorchInfo, collect, exit_code, parse_torch_info,
+};
 
 /// A fixed "now" for clock-skew tests: 2026-11-12T12:00:00Z.
 const NOW: i64 = 1_794_484_800;
@@ -33,6 +35,7 @@ fn fake_host() -> Host {
         }),
         version: Box::new(|_: &str| Some("1.0".to_owned())),
         now: Box::new(|| NOW),
+        bandwidth: None,
     }
 }
 
@@ -252,7 +255,7 @@ fn https_failure_reports_the_error() {
 }
 
 #[test]
-fn latency_is_the_median_of_samples_and_bandwidth_is_not_claimed() {
+fn latency_is_the_median_of_samples() {
     let samples = std::cell::RefCell::new([0.5, 0.1, 0.2, 0.5, 0.1, 0.2].into_iter());
     let mut host = fake_host();
     host.https = Box::new(move |_: &str| {
@@ -262,7 +265,87 @@ fn latency_is_the_median_of_samples_and_bandwidth_is_not_claimed() {
     let rows = collect(&host, Path::new("."));
     let row = &by_name(&rows)["net huggingface.co"];
     assert!(row.detail.contains("200 ms"));
-    assert!(row.detail.contains("bandwidth not measured"));
+}
+
+const SOURCE: &str = "https://example.invalid/object.bin";
+
+/// A host whose bandwidth probe returns `probe` instead of touching the network.
+fn bandwidth_host(probe: BandwidthProbe) -> Host {
+    let mut host = fake_host();
+    host.bandwidth = Some(Box::new(move || probe.clone()));
+    host
+}
+
+fn probe(bytes: u64, seconds: f64) -> BandwidthProbe {
+    BandwidthProbe { url: SOURCE.to_owned(), bytes, seconds, timed_out: false, error: None }
+}
+
+#[test]
+fn bandwidth_is_off_by_default_and_says_how_to_turn_it_on() {
+    let rows = collect(&fake_host(), Path::new("."));
+    let row = &by_name(&rows)["bandwidth"];
+    assert_eq!(row.status, "info");
+    assert!(row.detail.contains("not measured"));
+    assert!(row.detail.contains("--bandwidth"));
+}
+
+#[test]
+fn throughput_is_decimal_megabytes_per_second_over_the_body_time() {
+    // 32 MiB in 4 s: 8.39 MB/s decimal (a MiB/s figure would read 8.0), 67 Mbit/s.
+    let rows = collect(&bandwidth_host(probe(33_554_432, 4.0)), Path::new("."));
+    let row = &by_name(&rows)["bandwidth"];
+    assert_eq!(row.status, "ok");
+    assert!(row.detail.starts_with("download 8.4 MB/s (67 Mbit/s): 33554432 bytes in 4.0 s"));
+    assert!(row.detail.contains(SOURCE));
+    assert!(row.detail.contains("upload not measured"));
+    assert_eq!(exit_code(&rows), 0);
+}
+
+#[test]
+fn hitting_the_time_limit_keeps_the_partial_measurement() {
+    let mut slow = probe(4_000_000, 8.0);
+    slow.timed_out = true;
+    let rows = collect(&bandwidth_host(slow), Path::new("."));
+    let row = &by_name(&rows)["bandwidth"];
+    assert_eq!(row.status, "ok");
+    assert!(row.detail.starts_with("download 0.5 MB/s (4 Mbit/s): 4000000 bytes in 8.0 s"));
+    assert!(row.detail.contains("time limit"));
+}
+
+#[test]
+fn download_failure_is_a_warning_with_the_reason_and_source() {
+    let mut failed = probe(0, 0.0);
+    failed.error = Some("no data received within 8 s".to_owned());
+    let rows = collect(&bandwidth_host(failed), Path::new("."));
+    let row = &by_name(&rows)["bandwidth"];
+    assert_eq!(row.status, "warn");
+    assert!(row.detail.contains("download failed: no data received within 8 s"));
+    assert!(row.detail.contains(SOURCE));
+    assert!(!row.detail.contains("MB/s"));
+    // A failed bandwidth check must not turn a reachable machine into a hard failure.
+    assert_eq!(exit_code(&rows), 0);
+}
+
+#[test]
+fn failure_midway_reports_bytes_moved_and_no_throughput() {
+    let mut cut = probe(1_048_576, 0.7);
+    cut.error = Some("connection reset".to_owned());
+    let rows = collect(&bandwidth_host(cut), Path::new("."));
+    let row = &by_name(&rows)["bandwidth"];
+    assert_eq!(row.status, "warn");
+    assert!(row.detail.contains("download failed after 1048576 bytes: connection reset"));
+    assert!(!row.detail.contains("MB/s"));
+}
+
+#[test]
+fn an_unmeasurable_download_never_divides_by_zero() {
+    for (bytes, seconds) in [(1_000_000, 0.0), (0, 2.0)] {
+        let rows = collect(&bandwidth_host(probe(bytes, seconds)), Path::new("."));
+        let row = &by_name(&rows)["bandwidth"];
+        assert_eq!(row.status, "warn", "{bytes} bytes in {seconds} s");
+        assert!(row.detail.contains("too little to time"));
+        assert!(!row.detail.contains("inf"));
+    }
 }
 
 #[test]
