@@ -33,7 +33,7 @@ Today: `ofl doctor` (`src/doctor.rs`) checks Python, torch, GPU (NVIDIA CUDA, AM
 
 Planned: a local app on contributor machines with hardware discovery, resource limits, checkpoint recovery, local logs, a CLI plus desktop UI, and a signed device identity.
 
-Today: none of this exists. `ofl` (`src/cli.rs`) is a repo developer CLI: setup, checks, smoke tests and launchers. The planned `ofl join` described in [join-a-node.md](join-a-node.md) has no code.
+Today: none of this exists. `ofl` (`src/cli.rs`) is a repo developer CLI: setup, checks, smoke tests and launchers; builds compiled with `OFL_SENTRY_DSN` include opt-out panic and unexpected-error telemetry ([telemetry.md](telemetry.md)). The planned `ofl join` described in [join-a-node.md](join-a-node.md) has no code.
 
 **Next milestones**
 - Decide whether the node grows out of `ofl` or is a separate binary, and record the decision.
