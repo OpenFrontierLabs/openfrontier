@@ -67,17 +67,17 @@ Code, compute and results are all welcome. [CONTRIBUTING.md](CONTRIBUTING.md) sa
 
 ## Telemetry
 
-Builds of `ofl` compiled with `OFL_SENTRY_DSN` set include opt-out crash and unexpected-error reporting via [Sentry](https://sentry.io). Source builds without `OFL_SENTRY_DSN` make telemetry a complete no-op; no DSN is committed to this repository, and no prebuilt releases exist yet.
+Builds of `ofl` compiled with an HTTPS `OFL_SENTRY_DSN` build-time variable include opt-out crash and unexpected-error reporting via [Sentry](https://sentry.io) (panics and top-level `OflError` failures with exit code != 2, with stack traces, `release = ofl@<version>`, and `environment = development | production`). Source builds without `OFL_SENTRY_DSN` make telemetry a complete no-op; no DSN is committed to this repository, and no prebuilt releases exist yet.
 
-Any opt-out signal disables telemetry unconditionally:
+Any opt-out signal disables telemetry unconditionally and cannot be overridden by another variable (for example, `OFL_TELEMETRY=1` does not override `DO_NOT_TRACK=1`):
 
-- Global CLI flag: `ofl --no-telemetry <command>`
-- Environment variable: `OFL_TELEMETRY=0` (also accepts `false`, `off`, or `no`)
-- Standard opt-out: `DO_NOT_TRACK=1`
+- Global CLI flag: `ofl --no-telemetry <command>` (also recognized before `--` on `ofl swarm` / `ofl node`)
+- Environment variable: `OFL_TELEMETRY=0` (also accepts `false`, `off`, `no`; case-insensitive)
+- Standard opt-out: `DO_NOT_TRACK=1` (also accepts `true`, `on`, `yes`; case-insensitive)
 
-You can also compile `ofl` without the `sentry` crate at all: `cargo build --no-default-features`.
+You can also compile `ofl` without the `sentry` crate at all (`telemetry` is the only default Cargo feature): `cargo build --no-default-features`.
 
-Privacy guarantees (`send_default_pii = false`, no `contexts` OS/device/hostname fingerprint, no traces, no session tracking): before any event leaves the machine, `before_send` strips `user`, `request`, `server_name`/hostnames, IPv4 and IPv6 addresses in event payloads, secret-shaped environment or config assignments (`KEY=VALUE`), working directory paths (`<cwd>`), secret CLI flags, and replaces `$HOME` and local usernames with `~`. The `ofl` Sentry project also enables **Prevent Storing of IP Addresses** server-side so Sentry discards the connection IP address rather than storing it (Sentry still derives coarse country/region metadata from the HTTPS connection to `sentry.io`). See [docs/telemetry.md](docs/telemetry.md) for details.
+Privacy guarantees (`send_default_pii = false`, no `contexts` OS/device/hostname fingerprint, no traces, no session tracking): before any event leaves the machine, `before_send` strips `user`, `request`, `server_name`, `device.name`, stack `frame.vars`, hostnames, IPv4 and IPv6 addresses, Sentry DSNs, `Bearer`/`Basic` tokens, secret-shaped `KEY=VALUE` assignments, working directory paths (`<cwd>`), secret CLI flags, sensitive metadata keys, and replaces `$HOME` and local usernames with `~`. The `ofl` Sentry project also enables **Prevent Storing of IP Addresses** server-side so Sentry discards the connection IP address rather than storing it (coarse country/region metadata may still be derived at ingest from the HTTPS connection to `sentry.io`). See [docs/telemetry.md](docs/telemetry.md) for details.
 
 ## Links
 

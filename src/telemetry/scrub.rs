@@ -193,8 +193,11 @@ fn scrub_ips_in_text(input: &str) -> String {
             continue;
         }
         let (token, tail) = rest.split_at(split_at);
-        if is_ip_token(token) {
+        let body = token.trim_end_matches('.');
+        let trailing_dots = token.get(body.len()..).unwrap_or("");
+        if is_ip_token(body) {
             out.push_str("<ip>");
+            out.push_str(trailing_dots);
         } else {
             out.push_str(token);
         }
@@ -208,7 +211,10 @@ const fn is_ip_token_char(c: char) -> bool {
 }
 
 fn is_ip_token(token: &str) -> bool {
-    let cleaned = token.trim_end_matches(':');
+    is_ip_candidate(token) || is_ip_candidate(token.trim_end_matches([':', '.']))
+}
+
+fn is_ip_candidate(cleaned: &str) -> bool {
     if let Some(rest) = cleaned.strip_prefix('[') {
         let Some((inside, port_part)) = rest.split_once(']') else {
             return false;
@@ -494,6 +500,12 @@ mod tests {
         assert!(cleaned.contains("v0.1.0"), "version triple must stay intact: {cleaned}");
         assert!(is_sensitive_key("key"));
         assert!(is_sensitive_key("dsn"));
+
+        let trailing_period = scrub_str(
+            "seen 10.20.30.40. then 10.20.30.41:8080. and [fd12:3456:789a::2]:9000. and fe80::1. and 2001:db8:: and 2001:db8::.",
+            &ctx,
+        );
+        assert_eq!(trailing_period, "seen <ip>. then <ip>. and <ip>. and <ip>. and <ip> and <ip>.");
     }
 
     #[test]

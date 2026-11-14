@@ -25,3 +25,7 @@ Include what is affected (file, command or URL), how to reproduce it, and the im
 - Supply-chain issues: a pinned upstream or dependency that is compromised.
 
 Training-time trust between untrusted peers (poisoned updates, free riders) is a design topic as well as a security one: once the network exists, it is covered by an RFC in [`rfcs/`](rfcs/). Report concrete exploits privately here first.
+
+## Telemetry
+
+`ofl` compiles Sentry crash and unexpected-error reporting behind the default `telemetry` Cargo feature, activated only when an HTTPS `OFL_SENTRY_DSN` is supplied at build time (`option_env!("OFL_SENTRY_DSN")`). Source builds without `OFL_SENTRY_DSN` and `--no-default-features` builds never contact Sentry, and `OFL_SENTRY_DSN` is never committed to the repository. See [docs/telemetry.md](docs/telemetry.md) for opt-out flags and scrubbing guarantees; report any scrubbing bypass or opt-out bug privately through the vulnerability reporting process above.
