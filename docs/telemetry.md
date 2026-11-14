@@ -47,7 +47,7 @@ Before any event is sent, `before_send` (`ofl::telemetry::scrub_event`) removes 
 - Home directory paths (`$HOME`, `$USERPROFILE`, and generic `/home/<user>`, `/Users/<user>`, `C:\Users\<user>`) and local usernames (`USER`, `USERNAME`, `LOGNAME`, and the leaf segment of `$HOME`/`$USERPROFILE`; word-bounded when length >= 2), replaced with `~`
 - Current working directory paths (when distinct from `$HOME` / `$USERPROFILE`), replaced with `<cwd>`
 - Local hostnames (`HOSTNAME`, `COMPUTERNAME`, `/proc/sys/kernel/hostname`; word-bounded when length >= 3), replaced with `<host>`
-- IPv4 and IPv6 addresses (standalone tokens, `ipv4:port`, `[ipv6]:port`, and unbracketed IPv6, while preserving Rust module paths such as `std::io::Error`; tokens with a trailing `.` such as a sentence-ending `192.168.1.42.` are not matched by `is_ip_token`), replaced with `<ip>`
+- IPv4 and IPv6 addresses (standalone tokens, `ipv4:port`, `[ipv6]:port`, and unbracketed IPv6, while preserving Rust module paths such as `std::io::Error`), replaced with `<ip>`
 - Sentry DSN URLs (`<redacted-dsn>`), `Bearer`/`Basic` auth headers (`<scheme> <redacted>`), secret-shaped `KEY=VALUE` / `KEY = VALUE` assignments (`<KEY>=<redacted>`), and secret-carrying CLI flags (`--token`, `--api-key`, `--apikey`, `--password`, `--passwd`, `--secret`, `--auth`, `--authorization`, `--dsn`, `--private-key`, `--access-token`, `--refresh-token`)
 
 ## Release builds and verification
