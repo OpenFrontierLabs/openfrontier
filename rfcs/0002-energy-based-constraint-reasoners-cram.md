@@ -6,7 +6,7 @@
 | **Authors** | @bradlishman (founding steward); drafted by an agent (omp / claude-opus-5-5) |
 | **Created** | 2026-11-14 |
 | **Layers** | 4 Training, 8 Outputs |
-| **Discussion** | the pull request that adds this file |
+| **Discussion** | [PR #56](https://github.com/OpenFrontierLabs/openfrontier/pull/56), [Discussion #57](https://github.com/OpenFrontierLabs/openfrontier/discussions/57) |
 | **Tracking issue** | added once accepted |
 
 ## Summary
