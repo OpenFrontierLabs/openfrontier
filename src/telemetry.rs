@@ -40,12 +40,12 @@ static BEARER_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+").expect("static regex is valid")
 });
 
-/// Matches secret-looking `KEY=VALUE` environment assignments in text.
+/// Matches secret-looking `KEY=VALUE` and spaced `KEY = VALUE` assignments in text.
 #[expect(clippy::expect_used, reason = "the regex literal is compile-time valid")]
 // ubs:ignore[rust.perf.regex-new,rust.ownership.unwrap-expect] -- compiled once in a LazyLock static; the expect is on a compile-time-valid literal, not runtime input.
 static ENV_SECRET_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|KEY|DSN|AUTH|CREDENTIAL|COOKIE|SESSION)[A-Z0-9_]*)=(?:"[^"]*"|'[^']*'|[^\s]+)"#,
+        r#"(?i)\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|KEY|DSN|AUTH|CREDENTIAL|COOKIE|SESSION)[A-Z0-9_]*)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s]+)"#,
     )
     .expect("static regex is valid")
 });
@@ -66,6 +66,17 @@ static CLI_SECRET_FLAG_RE: LazyLock<Regex> = LazyLock::new(|| {
 static IPV4_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b")
         .expect("static regex is valid")
+});
+
+/// Matches IPv6 literals (bracketed with optional port, or unbracketed with `::` or >=4 hex groups)
+/// while leaving Rust module paths like `std::io::Error` untouched.
+#[expect(clippy::expect_used, reason = "the regex literal is compile-time valid")]
+// ubs:ignore[rust.perf.regex-new,rust.ownership.unwrap-expect] -- compiled once in a LazyLock static; the expect is on a compile-time-valid literal, not runtime input.
+static IPV6_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?:\[[0-9a-fA-F:]{2,39}(?:%[0-9A-Za-z._-]+)?\](?::\d+)?|\b(?:[0-9a-fA-F]{1,4}:){3,7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,6}:(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}\b|::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:)",
+    )
+    .expect("static regex is valid")
 });
 
 /// Lifetime guard for the telemetry client; dropping flushes pending events.
@@ -318,8 +329,9 @@ pub fn scrub_str(input: &str, ctx: &ScrubContext) -> String {
         }
     }
 
-    // Scrub raw IPv4 addresses.
-    IPV4_RE.replace_all(&out, "<ip>").into_owned()
+    // Scrub raw IPv4 and IPv6 addresses.
+    out = IPV4_RE.replace_all(&out, "<ip>").into_owned();
+    IPV6_RE.replace_all(&out, "<ip>").into_owned()
 }
 
 /// Replace occurrences of `needle` bounded by non-alphanumeric characters.
@@ -379,6 +391,8 @@ pub fn is_sensitive_key(key: &str) -> bool {
             | "session"
             | "authorization"
             | "auth"
+            | "key"
+            | "dsn"
     ) || lower.ends_with("_token")
         || lower.ends_with("_secret")
         || lower.ends_with("_password")
@@ -394,20 +408,56 @@ pub fn is_sensitive_key(key: &str) -> bool {
 mod sentry_impl {
     use std::borrow::Cow;
     use std::sync::Arc;
+    use std::time::Duration;
 
     use sentry::integrations::backtrace::{
         AttachStacktraceIntegration, ProcessStacktraceIntegration,
     };
     use sentry::integrations::panic::PanicIntegration;
     use sentry::protocol::{Context, Event, Map, Stacktrace, Value};
-    use sentry::types::Dsn;
-    use sentry::{ClientOptions, Integration, TracesSamplingStrategy};
+    use sentry::transports::UreqHttpTransportOptions;
+    use sentry::types::{Dsn, Scheme};
+    use sentry::{
+        ClientOptions, Integration, TracesSamplingStrategy, Transport, TransportFactory,
+        TransportOptions,
+    };
+    use ureq::tls::{TlsConfig, TlsProvider};
+    use ureq::{Agent, Proxy};
 
     use super::{ScrubContext, TelemetryGuard, is_opted_out, is_sensitive_key, scrub_str};
 
-    /// Parse a build-time DSN if present and non-empty.
+    /// Maximum wall-clock time for a single Sentry HTTP envelope upload.
+    const TRANSPORT_TIMEOUT: Duration = Duration::from_secs(3);
+
+    /// Transport factory that bounds `ureq` request/connect deadlines so CLI exit cannot stall.
+    struct BoundedUreqTransportFactory;
+
+    impl TransportFactory for BoundedUreqTransportFactory {
+        fn create_transport_with_options(&self, options: TransportOptions) -> Arc<dyn Transport> {
+            let mut builder =
+                Agent::config_builder().timeout_global(Some(TRANSPORT_TIMEOUT)).tls_config(
+                    TlsConfig::builder()
+                        .provider(TlsProvider::Rustls)
+                        .disable_verification(options.accept_invalid_certs)
+                        .build(),
+                );
+            if let Some(proxy_url) =
+                options.https_proxy.as_deref().or(options.http_proxy.as_deref())
+                && let Ok(proxy) = Proxy::new(proxy_url)
+            {
+                builder = builder.proxy(Some(proxy));
+            }
+            let agent = builder.build().new_agent();
+            Arc::new(UreqHttpTransportOptions::from(options).with_agent(agent).build())
+        }
+    }
+
+    /// Parse a build-time DSN if present, non-empty, and using HTTPS.
     pub fn parse_dsn(raw: Option<&str>) -> Option<Dsn> {
-        raw.map(str::trim).filter(|s| !s.is_empty()).and_then(|s| s.parse::<Dsn>().ok())
+        raw.map(str::trim)
+            .filter(|s| !s.is_empty())
+            .and_then(|s| s.parse::<Dsn>().ok())
+            .filter(|dsn| dsn.scheme() == Scheme::Https)
     }
 
     /// Build `ClientOptions` when enabled, or `None` when disabled/opted out/no DSN.
@@ -443,6 +493,8 @@ mod sentry_impl {
         opts.traces_sampling_strategy = TracesSamplingStrategy::Disabled;
         opts.default_integrations = false;
         opts.integrations = integrations;
+        opts.transport = Some(Arc::new(BoundedUreqTransportFactory));
+        opts.shutdown_timeout = TRANSPORT_TIMEOUT;
         opts.before_send = Some(Arc::new(move |event| Some(scrub_event(event, &before_send_ctx))));
         Some(opts)
     }
@@ -639,18 +691,23 @@ mod tests {
         };
         ctx.normalize();
 
-        let raw = "user alice on gpu-node-01 (192.168.1.42) in /tmp/alice-work/repo failed reading \
-                   /home/alice/.ofl/config with OFL_SENTRY_DSN=https://secret@o1.ingest.sentry.io/9 \
-                   and SENTRY_AUTH_TOKEN=sntrys_abc123 --token mysecret --api-key='k123' \
-                   Authorization: Bearer tok_xyz at v0.1.0";
+        let raw = "user alice on gpu-node-01 (192.168.1.42, [fd12:3456:789a::1]:8000, fe80::1) \
+                   in /tmp/alice-work/repo failed reading /home/alice/.ofl/config with \
+                   OFL_SENTRY_DSN=https://secret@o1.ingest.sentry.io/9 and \
+                   api_key = \"toml_secret_val\" and SENTRY_AUTH_TOKEN=sntrys_abc123 \
+                   --token mysecret --api-key='k123' Authorization: Bearer tok_xyz \
+                   at std::io::Error v0.1.0";
         let cleaned = scrub_str(raw, &ctx);
 
         assert!(!cleaned.contains("alice"), "username leaked: {cleaned}");
         assert!(!cleaned.contains("gpu-node-01"), "hostname leaked: {cleaned}");
         assert!(!cleaned.contains("192.168.1.42"), "ip leaked: {cleaned}");
+        assert!(!cleaned.contains("fd12:3456:789a::1"), "bracketed ipv6 leaked: {cleaned}");
+        assert!(!cleaned.contains("fe80::1"), "ipv6 leaked: {cleaned}");
         assert!(!cleaned.contains("/tmp/alice-work/repo"), "cwd leaked: {cleaned}");
         assert!(!cleaned.contains("secret"), "dsn secret leaked: {cleaned}");
         assert!(!cleaned.contains("sntrys_abc123"), "env token leaked: {cleaned}");
+        assert!(!cleaned.contains("toml_secret_val"), "spaced config secret leaked: {cleaned}");
         assert!(!cleaned.contains("mysecret"), "cli token leaked: {cleaned}");
         assert!(!cleaned.contains("k123"), "cli api-key leaked: {cleaned}");
         assert!(!cleaned.contains("tok_xyz"), "bearer token leaked: {cleaned}");
@@ -658,6 +715,7 @@ mod tests {
         assert!(cleaned.contains("<cwd>"), "expected <cwd>: {cleaned}");
         assert!(cleaned.contains("<host>"), "expected <host>: {cleaned}");
         assert!(cleaned.contains("<ip>"), "expected <ip>: {cleaned}");
+        assert!(cleaned.contains("std::io::Error"), "rust path must stay intact: {cleaned}");
         assert!(cleaned.contains("v0.1.0"), "version triple must stay intact: {cleaned}");
     }
 
@@ -678,6 +736,19 @@ mod tests {
         assert!(build_client_options(None, false, None, None, ctx.clone()).is_none());
         assert!(build_client_options(Some(""), false, None, None, ctx.clone()).is_none());
         assert!(build_client_options(Some("not-a-dsn"), false, None, None, ctx.clone()).is_none());
+        assert!(
+            build_client_options(
+                Some("http://public@example.invalid/1"),
+                false,
+                None,
+                None,
+                ctx.clone()
+            )
+            .is_none(),
+            "cleartext http DSN must be rejected"
+        );
+        assert!(is_sensitive_key("key"));
+        assert!(is_sensitive_key("dsn"));
         assert!(
             build_client_options(
                 Some("https://public@example.invalid/1"),

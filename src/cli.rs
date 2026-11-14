@@ -185,8 +185,9 @@ enum UnbuiltAction {
 
 /// Parse, dispatch, report. Returns the process exit code.
 pub fn main() -> ExitCode {
-    let cli = Cli::parse();
-    let telemetry = telemetry::init(cli.no_telemetry);
+    let mut cli = Cli::parse();
+    let passthrough_opt_out = take_no_telemetry_from_passthrough(&mut cli.command);
+    let telemetry = telemetry::init(cli.no_telemetry || passthrough_opt_out);
     match dispatch(cli.command, &telemetry) {
         Ok(code) => exit_code(code),
         Err(e) => {
@@ -198,6 +199,26 @@ pub fn main() -> ExitCode {
             exit_code(i32::from(e.code))
         }
     }
+}
+
+/// Strip `--no-telemetry` before `--` on `swarm`/`node` passthrough commands.
+fn take_no_telemetry_from_passthrough(command: &mut Command) -> bool {
+    let (Command::Swarm { args } | Command::Node { args }) = command else {
+        return false;
+    };
+    let mut end = args.iter().position(|arg| arg == "--").unwrap_or(args.len());
+    let mut found = false;
+    let mut idx = 0;
+    while idx < end {
+        if args.get(idx).is_some_and(|a| a == "--no-telemetry") {
+            args.remove(idx);
+            found = true;
+            end = end.saturating_sub(1);
+        } else {
+            idx += 1;
+        }
+    }
+    found
 }
 
 /// Map an exit code to the process type.
@@ -341,6 +362,7 @@ fn list_upstreams() -> Result<i32> {
 }
 
 #[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "test assertions panic on failure")]
 mod tests {
     use clap::{CommandFactory, Parser};
 
@@ -363,5 +385,28 @@ mod tests {
         assert!(!help_text.contains("telemetry-test"));
 
         assert!(super::Cli::try_parse_from(["ofl", "telemetry-test"]).is_ok());
+
+        let mut node_opt_out = super::Cli::try_parse_from([
+            "ofl",
+            "node",
+            "join",
+            "--no-telemetry",
+            "--coordinator",
+            "x",
+        ])
+        .unwrap();
+        assert!(super::take_no_telemetry_from_passthrough(&mut node_opt_out.command));
+        assert!(matches!(
+            node_opt_out.command,
+            super::Command::Node { args } if args == ["join", "--coordinator", "x"]
+        ));
+
+        let mut node_after_dashdash =
+            super::Cli::try_parse_from(["ofl", "node", "join", "--", "--no-telemetry"]).unwrap();
+        assert!(!super::take_no_telemetry_from_passthrough(&mut node_after_dashdash.command));
+        assert!(matches!(
+            node_after_dashdash.command,
+            super::Command::Node { args } if args == ["join", "--", "--no-telemetry"]
+        ));
     }
 }

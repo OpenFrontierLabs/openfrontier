@@ -40,8 +40,8 @@ Before any event is sent, `before_send` (`ofl::telemetry::scrub_event`) removes 
 - Home directory paths (`/home/<user>`, `/Users/<user>`, `C:\Users\<user>`, `$HOME`, `$USERPROFILE`) and local usernames, replaced with `~`
 - Current working directory paths, replaced with `<cwd>`
 - Local hostnames, replaced with `<host>`
-- IPv4 addresses, replaced with `<ip>`
-- Sentry DSNs, `Bearer`/`Basic` auth headers, `KEY=VALUE` secret assignments, and secret-carrying CLI flags (`--token`, `--api-key`, `--password`, `--secret`, `--dsn`, `--auth`, etc.)
+- IPv4 and IPv6 addresses, replaced with `<ip>`
+- Sentry DSNs, `Bearer`/`Basic` auth headers, `KEY=VALUE` / `KEY = VALUE` secret assignments, and secret-carrying CLI flags (`--token`, `--api-key`, `--password`, `--secret`, `--dsn`, `--auth`, etc.)
 
 ## Future release builds
 

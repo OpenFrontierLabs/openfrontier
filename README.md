@@ -77,7 +77,7 @@ Any opt-out signal disables telemetry unconditionally:
 
 You can also compile `ofl` without the `sentry` crate at all: `cargo build --no-default-features`.
 
-Privacy guarantees (`send_default_pii = false`, no `contexts` OS/device/hostname fingerprint, no traces, no session tracking): before any event leaves the machine, `before_send` strips `user`, `request`, `server_name`/hostnames, IPv4 addresses in event payloads, environment variables, working directory paths (`<cwd>`), secret CLI flags, and replaces `$HOME` and local usernames with `~`. The `ofl` Sentry project also enables **Prevent Storing of IP Addresses** server-side so Sentry discards the connection IP rather than storing IP or geolocation data (an HTTPS request still reaches `sentry.io`). See [docs/telemetry.md](docs/telemetry.md) for details.
+Privacy guarantees (`send_default_pii = false`, no `contexts` OS/device/hostname fingerprint, no traces, no session tracking): before any event leaves the machine, `before_send` strips `user`, `request`, `server_name`/hostnames, IPv4 and IPv6 addresses in event payloads, secret-shaped environment or config assignments (`KEY=VALUE`), working directory paths (`<cwd>`), secret CLI flags, and replaces `$HOME` and local usernames with `~`. The `ofl` Sentry project also enables **Prevent Storing of IP Addresses** server-side so Sentry discards the connection IP rather than storing IP or geolocation data (an HTTPS request still reaches `sentry.io`). See [docs/telemetry.md](docs/telemetry.md) for details.
 
 ## Links
 
