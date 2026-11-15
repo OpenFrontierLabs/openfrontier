@@ -44,3 +44,4 @@ Numbers are permanent and never reused. Filenames do not change after merge.
 | --- | --- | --- |
 | [0001](0001-milestone-ladder-and-first-diloco-proof-run.md) | Milestone ladder and first DiLoCo proof run | proposed |
 | [0002](0002-energy-based-constraint-reasoners-cram.md) | Energy-based constraint reasoners (CRAM) as verifiers and an eval-hygiene track | draft |
+| [0003](0003-node-packaging.md) | The node is a separate Rust binary, `ofl-node`, not an extension of `ofl` | proposed |
