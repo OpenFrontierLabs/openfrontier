@@ -66,14 +66,14 @@ pub fn build() -> Result<i32> {
     run(&spec, None)
 }
 
-/// Run the Rust test suite, then the swarm tests in the Python smoke environment.
+/// Run the Rust test suite (every workspace member), then the swarm tests in the Python smoke environment.
 ///
 /// # Errors
 ///
 /// [`OflError`] when cargo or the smoke environment fails to start.
 pub fn test() -> Result<i32> {
     let root = find_root(None)?;
-    let argv = vec!["cargo".to_owned(), "test".to_owned()];
+    let argv = vec!["cargo".to_owned(), "test".to_owned(), "--workspace".to_owned()];
     let spec = RunSpec { argv: &argv, cwd: Some(&root), env: None };
     let rust = run(&spec, None)?;
     ensure_smoke_env(&root)?;
@@ -94,13 +94,14 @@ pub fn fix() -> Result<i32> {
     let clippy_argv = vec![
         "cargo".to_owned(),
         "clippy".to_owned(),
+        "--workspace".to_owned(),
         "--fix".to_owned(),
         "--allow-dirty".to_owned(),
         "--allow-staged".to_owned(),
     ];
     let clippy = RunSpec { argv: &clippy_argv, cwd: Some(&root), env: None };
     let mut rc = run(&clippy, None)?;
-    let fmt_argv = vec!["cargo".to_owned(), "fmt".to_owned()];
+    let fmt_argv = vec!["cargo".to_owned(), "fmt".to_owned(), "--all".to_owned()];
     let fmt = RunSpec { argv: &fmt_argv, cwd: Some(&root), env: None };
     rc |= run(&fmt, None)?;
     Ok(rc)
@@ -145,12 +146,16 @@ pub fn check() -> Result<i32> {
 /// The lint/format/type subprocesses `check` runs.
 fn lint_steps() -> Vec<(&'static str, Vec<String>)> {
     vec![
-        ("cargo fmt --check", vec!["cargo".to_owned(), "fmt".to_owned(), "--check".to_owned()]),
+        (
+            "cargo fmt --check",
+            vec!["cargo".to_owned(), "fmt".to_owned(), "--all".to_owned(), "--check".to_owned()],
+        ),
         (
             "cargo clippy",
             vec![
                 "cargo".to_owned(),
                 "clippy".to_owned(),
+                "--workspace".to_owned(),
                 "--all-targets".to_owned(),
                 "--".to_owned(),
                 "-D".to_owned(),

@@ -1,3 +1,7 @@
+# One lockfile and one lint profile for the repo; `ofl-node` lives in node/.
+[workspace]
+members = ["node"]
+
 [package]
 name = "ofl"
 version = "0.1.0"
@@ -29,11 +33,14 @@ sentry = { version = "0.49.5", default-features = false, features = ["backtrace"
 [dev-dependencies]
 tempfile = "3.27.0"
 
-# Canonical Algodyne lint profile (common/lint/workspace-lints.toml).
-[lints.rust]
+[lints]
+workspace = true
+
+# Canonical Algodyne lint profile (common/lint/workspace-lints.toml), shared by every member.
+[workspace.lints.rust]
 unsafe_code = "forbid"
 
-[lints.clippy]
+[workspace.lints.clippy]
 allow_attributes = "deny"
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
