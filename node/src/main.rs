@@ -1,14 +1,16 @@
-//! `ofl-node`: keygen, sign, verify. Output goes to stdout; the secret key is never printed.
+//! `ofl-node`: keygen, sign, verify, peer. Output goes to stdout; the secret key is never printed.
 
 use std::io::Read;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use clap::{Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 use ofl_node::envelope::{self, SignedReport};
 use ofl_node::error::{NodeError, Result};
 use ofl_node::identity::{self, Origin};
+use ofl_node::peer::{self, BootstrapPeer, PeerConfig, Transport};
 use ofl_node::report::HardwareReport;
 
 #[derive(Parser)]
@@ -29,6 +31,31 @@ enum Command {
     Sign,
     /// Verify an envelope (a file, or stdin when omitted); exit 1 if it does not verify.
     Verify { file: Option<PathBuf> },
+    /// Join the swarm: start a bootstrap peer (--listen) or join one (--bootstrap), and list peers.
+    Peer(PeerArgs),
+}
+
+#[derive(Args)]
+#[command(group(ArgGroup::new("role").required(true).multiple(true).args(["listen", "bootstrap"])))]
+struct PeerArgs {
+    /// Listen and serve as a Kademlia server (a bootstrap peer); prints its multiaddr.
+    #[arg(long)]
+    listen: bool,
+    /// Address to listen on with --listen. Use 0.0.0.0 to accept connections from other machines.
+    #[arg(long, default_value_t = IpAddr::V4(Ipv4Addr::LOCALHOST), requires = "listen")]
+    host: IpAddr,
+    /// Port to listen on with --listen (UDP for QUIC, TCP with --tcp); 0 lets the OS pick.
+    #[arg(long, default_value_t = 0, requires = "listen")]
+    port: u16,
+    /// Multiaddr of a peer to join, ending in /p2p/<peer id>; repeatable.
+    #[arg(long, value_name = "MULTIADDR")]
+    bootstrap: Vec<BootstrapPeer>,
+    /// Use TCP (Noise, Yamux) instead of the default QUIC.
+    #[arg(long)]
+    tcp: bool,
+    /// Seconds between peer listings.
+    #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..))]
+    interval_secs: u64,
 }
 
 fn main() -> ExitCode {
@@ -66,8 +93,20 @@ fn run(cli: &Cli) -> Result<()> {
             println!("ok peer_id {}", verified.peer_id);
             println!("{}", serde_json::to_string_pretty(&verified.report)?);
         }
+        Command::Peer(args) => run_peer(args, &key_path()?)?,
     }
     Ok(())
+}
+
+fn run_peer(args: &PeerArgs, key_file: &Path) -> Result<()> {
+    let (keypair, _) = identity::load_or_create(key_file)?;
+    let config = PeerConfig {
+        transport: if args.tcp { Transport::Tcp } else { Transport::Quic },
+        listen: args.listen.then(|| SocketAddr::new(args.host, args.port)),
+        bootstrap: args.bootstrap.clone(),
+        interval: Duration::from_secs(args.interval_secs),
+    };
+    peer::run(&config, keypair).map(|never| match never {})
 }
 
 fn read_input(file: Option<&Path>) -> Result<String> {

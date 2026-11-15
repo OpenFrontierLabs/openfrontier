@@ -30,6 +30,13 @@ pub enum NodeError {
     BadEnvelope(String),
     #[error("signature does not match the report and public key")]
     BadSignature,
+    #[error(
+        "bootstrap address {addr}: {reason}. Expected a full multiaddr that ends in the peer id, \
+         such as /ip4/127.0.0.1/udp/4001/quic-v1/p2p/12D3Koo..."
+    )]
+    BadBootstrap { addr: String, reason: String },
+    #[error("peer network: {0}")]
+    Network(String),
 }
 
 impl NodeError {

@@ -3,6 +3,7 @@
 The device identity of an Open Frontier Node: an Ed25519 keypair that is generated on first run,
 kept on disk, and used to sign a small hardware report. This is the first piece of the node
 ([docs/ARCHITECTURE.md §2](../docs/ARCHITECTURE.md#2-open-frontier-node)); it does not run workers.
+`peer` (below) is the first piece of layer 3: it finds other peers and carries no payload yet.
 It is a separate crate in the repo's Cargo workspace, so `make check` and `make test` at the
 repo root cover it (`cargo clippy --workspace`, `cargo test --workspace`).
 
@@ -20,9 +21,71 @@ cargo run -- sign | cargo run -- verify   # verify reads stdin when no file is g
 ```
 
 `--key-file <path>` (before or after the subcommand) overrides the key location.
+`peer` is described in [Peer](#peer).
 
 `keygen` is idempotent: if the key file exists it is left untouched and its peer id is printed.
 `sign` creates the key too if this is the first run.
+
+## Peer
+
+`peer` joins a swarm with rust-libp2p 0.57: Identify and Kademlia over QUIC (default) or TCP with
+Noise and Yamux (`--tcp`). Its libp2p identity is the device key, so its peer id is the one
+`keygen` prints. Two terminals on one machine, from `node/`:
+
+```
+# terminal 1: a bootstrap peer on 127.0.0.1, OS-chosen UDP port
+cargo run -- peer --listen
+#   peer_id 12D3Koo...A
+#   listening /ip4/127.0.0.1/udp/54321/quic-v1/p2p/12D3Koo...A
+
+# terminal 2: a second peer with its own key, joined to the first (paste the printed line)
+cargo run -- --key-file /tmp/peer2.key peer --bootstrap /ip4/127.0.0.1/udp/54321/quic-v1/p2p/12D3Koo...A
+```
+
+Without `--key-file` both terminals would use the same device key and the same peer id, so the
+second peer needs its own key file. Add `--tcp` to every peer for TCP; the address then looks like
+`/ip4/127.0.0.1/tcp/54321/p2p/12D3Koo...A`. A peer speaks one transport per run, so a `--tcp` peer
+cannot dial a QUIC address: it prints `error: dial ...` on stderr, keeps retrying, and lists the
+bootstrap peer as `connected=false routing_table=true` (Kademlia keeps an address it has not reached).
+
+| Flag | Meaning |
+|---|---|
+| `--listen` | Listen and act as a Kademlia server. At least one of `--listen` and `--bootstrap` is required. |
+| `--host <ip>` | Address to listen on with `--listen`. Default `127.0.0.1`; use `0.0.0.0` to accept other machines. |
+| `--port <n>` | Port to listen on (UDP, or TCP with `--tcp`). Default `0`: the OS picks and `listening` shows it. |
+| `--bootstrap <multiaddr>` | Peer to join; must end in `/p2p/<peer id>`. Repeatable. Added to the routing table, then Kademlia bootstraps. |
+| `--tcp` | TCP instead of QUIC. |
+| `--interval-secs <n>` | Seconds between listings. Default `5`. |
+
+A peer started with `--listen --bootstrap <addr>` serves and joins at once. Without `--listen` it
+listens nowhere and is a Kademlia client: other peers can reach it only over the connection it
+opened.
+
+### What it prints
+
+```
+peer_id 12D3Koo...B
+peers 1
+peer 12D3Koo...A connected=true routing_table=true
+```
+
+`peer_id` and `listening` print once (each `listening` line is a full multiaddr to pass to
+`--bootstrap`); `peers <n>` and one `peer` line per known peer repeat every interval. A peer is
+*known* if it completed Identify with this node over a connection that is still open, or sits in
+this node's Kademlia routing table. `connected` says whether a connection to it is open now;
+`routing_table` says whether Kademlia holds it. The list is what this node has seen, not the whole
+swarm: Kademlia's queries and routing-table fills widen it as more peers join, but nothing here
+guarantees completeness.
+
+Kademlia admits only peers that announce its protocol, i.e. servers. So in the two-terminal example
+the second peer lists the first with `routing_table=true`, and the first lists the second with
+`routing_table=false` (connected and identified, but a client). Start the second peer with
+`--listen` too and both show `routing_table=true`.
+
+The swarm uses its own protocol names (`/ofl/kad/1.0.0`, `/ofl/peer/0.1.0`), not the public IPFS
+DHT's `/ipfs/kad/1.0.0`, so it cannot join that network by accident. While a peer has identified
+nobody it repeats the join (routing-table entry plus Kademlia bootstrap) every interval, so a
+joiner started before its bootstrap peer connects once that peer is up.
 
 ## Key file
 
