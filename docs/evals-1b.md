@@ -47,7 +47,7 @@ All nine exist at the pinned commit (task yaml under `lm_eval/tasks/`). Metric k
 
 **Shots: 0 for every task.** None of the nine yamls sets `num_fewshot`, and at this commit the harness uses 0 when the flag is absent (`lm_eval/evaluator.py`), so the harness default and this plan agree; the command passes `--num_fewshot 0` anyway so the choice is on record. Zero-shot is what OLMo-1B's paper reports (below). With 0 shots no few-shot examples are drawn, so the few-shot seed has nothing to select; `--seed` is left at the harness default (`0,1234,1234,1234`).
 
-MMLU and the generative tasks OLMo 2 reports are left out on purpose. OLMo 2 1B's pretraining checkpoint, after 4T tokens, scores 26.9 on MMLU (Table 9 of the OLMo 2 paper, below), close to the 25% chance rate for four choices, so a 30B-token Run 0 should not be expected to separate from the swarm there. That is an inference, not something we ran. The generative tasks need OLMES's generation setup, which this harness command does not reproduce.
+MMLU and the generative tasks OLMo 2 reports are left out on purpose. MMLU is left out because a 30B-token 1B model is expected to sit near the four-choice chance rate on it, so it would not separate Run 0 from the swarm; that is an inference from OLMo 2's reported 1B pretraining-stage results (Table 9 of the OLMo 2 paper, below), not something we ran. The generative tasks need OLMES's generation setup, which this harness command does not reproduce.
 
 ## The command
 
@@ -76,13 +76,9 @@ The reference is Ai2's OLMo. Two sources, both read for this file:
 - **OLMo-1B, zero-shot, 8 tasks.** [Groeneveld et al. 2024, arXiv:2402.00838](https://arxiv.org/abs/2402.00838), §4.1 and Table 3. Core suite: `arc` (easy and challenge), `boolq`, `openbookqa`, `sciq`, `hellaswag`, `piqa`, `winogrande`. All zero-shot, by rank classification over answer log-likelihoods in Ai2's Catwalk framework. It normalises per task: unconditional for arc and openbookqa, per token for hellaswag, piqa and winogrande, none for boolq and sciq. Our eight non-LAMBADA tasks are exactly this suite.
 - **OLMo 2 1B, OLMES.** [Team OLMo et al. 2024, arXiv:2501.00656](https://arxiv.org/abs/2501.00656), Appendix A.1 and Table 20 (5-shot curated examples, both multiple-choice and cloze formulations tried and the better one kept; accuracy for multiple-choice tasks, F1 for generative), and Table 9 for the 1B pretraining and mid-training scores (MMLU, ARC-C, HellaSwag, WinoGrande and others). The harness is [allenai/olmes](https://github.com/allenai/olmes) (HEAD `5a51f502d463b8cdc4a2dcad7d7096c41ff1197e` on 2026-11-15, not pinned by us). Its README says it builds on this harness's features with its own modifications, so it is not this harness.
 
-OLMo-1B Table 3, as printed (zero-shot, Catwalk), for orientation only:
+OLMo-1B's own zero-shot results for these eight tasks are in Table 3 of the OLMo paper. They are not copied here: this repo does not restate third-party benchmark results, and they were produced with a different framework.
 
-| arc_challenge | arc_easy | boolq | hellaswag | openbookqa | piqa | sciq | winogrande | avg |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 34.5 | 58.1 | 60.7 | 62.5 | 46.4 | 73.7 | 88.1 | 58.9 | 60.4 |
-
-**These numbers are not a target our harness run should reproduce.** Same task suite, but a different framework, and the normalisations differ: the harness yamls above report only `acc` and `acc_norm` (per character), with no unconditional normalisation. OLMo 2's 5-shot OLMES numbers are a different protocol again. We do not copy them into a table with ours.
+**Those published numbers are not a target our harness run should reproduce.** Same task suite, but a different framework, and the normalisations differ: the harness yamls above report only `acc` and `acc_norm` (per character), with no unconditional normalisation. OLMo 2's 5-shot OLMES numbers are a different protocol again. We do not copy them into a table with ours.
 
 **The like-for-like comparison is to run the command above on the OLMo checkpoints with the same harness.** `allenai/OLMo-2-0425-1B` is a Hugging Face model (Apache-2.0 per its card metadata); revisions listed by the Hugging Face API on 2026-11-15, with the commit each resolves to:
 
