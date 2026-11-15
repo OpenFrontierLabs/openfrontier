@@ -118,7 +118,7 @@ Today: nothing in this repo is hosted.
 **Next milestones**
 - Hugging Face organisation repo for Run 0 artifacts.
 - R2 bucket for mirrors and reports.
-- One bootstrap/relay node on a regional VPS once the layer 3 peer exists. The [bootstrap relay runbook](runbooks/bootstrap-relay.md) is written for the upstream `relay-server` example and checked on loopback only; it has not been run on a VPS.
+- One bootstrap/relay node on a regional VPS once the layer 3 peer exists. The [bootstrap relay runbook](runbooks/bootstrap-relay.md) is written for the upstream `relay-server` example and has not been run on a VPS.
 - D1 and Durable Objects when the consoles need them.
 
 ## 8. Outputs

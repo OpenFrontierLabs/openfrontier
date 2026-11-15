@@ -10,7 +10,7 @@ What was checked, and where:
 
 | Step | Status | Where |
 | --- | --- | --- |
-| Build `relay-server-example` at the pinned tag | Verified | Ubuntu 24.04.5 LTS, Linux 6.8.0-147-generic, aarch64, rustc 1.99.1. A fleet host picked by `heavy-build-route`, not a VPS. The release build took 29.95 s in the last run. |
+| Build `relay-server-example` at the pinned tag | Verified | Ubuntu 24.04.5 LTS, Linux 6.8.0-147-generic, aarch64, rustc 1.99.1. A fleet host picked by `heavy-build-route`, not a VPS. |
 | `--help`, required flags | Verified | Same host; output quoted below |
 | Run on a high port, print the peer id | Verified | Same host, loopback, port 41234 |
 | Same seed gives the same peer id after a restart; another seed gives another | Verified | Same host |
@@ -71,7 +71,7 @@ Use documentation addresses when you write notes: `192.0.2.10` (IPv4) and `2001:
 
 ## 2. Build
 
-On the VPS if it can compile Rust, or on a machine with the same OS family and CPU architecture, then copy the binary.
+Build on the VPS if it can compile Rust. Otherwise build on a machine with the same CPU architecture and the same distribution release, or at least a glibc no newer than the VPS's, then copy the binary: matching only the OS family does not make a dynamically linked binary start on an older VPS.
 
 ```sh
 git clone https://github.com/libp2p/rust-libp2p
@@ -247,13 +247,13 @@ Unhealthy signs: TCP ping works and QUIC hangs (UDP blocked at the provider or h
 The example is at version 0.1.0 with no release notes of its own, and its flags can change between tags.
 
 1. Pick the new tag, then record the tag and its commit (`git rev-parse HEAD`) in this runbook and in whatever pin file the peer binary adopts. Change both together.
-2. Check out the tag, run `--help`, and compare it with the block above. If the flags changed, update the unit before restarting.
-3. Keep the running binary, then replace it atomically: `sudo cp -p /usr/local/bin/relay-server-example /usr/local/bin/relay-server-example.prev`, `sudo install -m 0755 target/release/relay-server-example /usr/local/bin/relay-server-example.new`, `sudo mv /usr/local/bin/relay-server-example.new /usr/local/bin/relay-server-example`.
-4. `sudo systemctl restart ofl-relay`, then run the health checks, including the peer id comparison.
+2. Check out the tag, rebuild with the same command as in [Build](#2-build) (`cargo build --release --locked -p relay-server-example`; checking out a tag does not rebuild `target/release/`), then run `--help` and compare it with the block above. If the flags changed, update the unit file and set `RELAY_*` values to match before restarting.
+3. Save what is running, then replace it atomically. The previous unit is saved too, because a rollback needs the old binary and the old flags together: `sudo cp -p /usr/local/bin/relay-server-example /usr/local/bin/relay-server-example.prev`, `sudo cp -p /etc/systemd/system/ofl-relay.service /etc/ofl-relay/ofl-relay.service.prev`, `sudo install -m 0755 target/release/relay-server-example /usr/local/bin/relay-server-example.new`, `sudo mv /usr/local/bin/relay-server-example.new /usr/local/bin/relay-server-example`. Then edit the unit if step 2 said to.
+4. `sudo systemctl daemon-reload` (needed whenever the unit file changed; harmless otherwise), `sudo systemctl restart ofl-relay`, then run the health checks, including the peer id comparison and a check that the running binary is the new one (`systemctl show -p ExecMainStartTimestamp ofl-relay` is after the replace).
 
 The peer id survives the restart as long as `RELAY_SEED` is unchanged (verified: a scripted run restarted the relay and got the same id). Connected peers lose their connections; [INFERENCE] clients re-dial and renew reservations, but the example's clients were not tested across a relay restart. An upgrade is not zero downtime.
 
-Roll back by moving the previous binary back and restarting.
+Roll back by restoring both saved files, then reloading and restarting: `sudo mv /usr/local/bin/relay-server-example.prev /usr/local/bin/relay-server-example`, `sudo cp -p /etc/ofl-relay/ofl-relay.service.prev /etc/systemd/system/ofl-relay.service`, `sudo systemctl daemon-reload`, `sudo systemctl restart ofl-relay`, then run the health checks again. Restoring only the binary leaves the old binary paired with the new flags.
 
 ## Not covered
 
