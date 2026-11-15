@@ -8,9 +8,11 @@
 //!         importable, less than 2 GiB free next to the repo, or github.com /
 //!         huggingface.co unreachable.
 //!
-//! Nothing here measures bandwidth. The network rows report DNS time and HTTPS
-//! round-trip time only.
+//! Network rows report DNS time and HTTPS round-trip time. Bandwidth is opt-in
+//! (`ofl doctor --bandwidth`): one bounded download from a pinned public object,
+//! reported as MB/s. Upload is not measured.
 
+use std::io::Read;
 use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -38,6 +40,21 @@ const HTTPS_TIMEOUT: Duration = Duration::from_secs(8);
 const TORCH_TIMEOUT: Duration = Duration::from_secs(60);
 /// Bytes per GiB.
 const GIB: f64 = 1_073_741_824.0;
+/// Public object timed by `--bandwidth`: `model.safetensors` of `openai-community/gpt2`
+/// at a pinned revision, so the object cannot change under the measurement. Checked
+/// with curl on 2026-11-15: HEAD (after the CDN redirect) gave HTTP 200 and
+/// `content-length: 548105171`; a `Range: bytes=0-33554431` request gave HTTP 206 and
+/// `content-range: bytes 0-33554431/548105171`.
+const BANDWIDTH_URL: &str = "https://huggingface.co/openai-community/gpt2/resolve/\
+                             607a30d783dfa663caf39e06633721c8d4cfcd7e/model.safetensors";
+/// Most bytes `--bandwidth` moves: a 32 MiB range of that file, not the whole 548 MB.
+const BANDWIDTH_CAP_BYTES: u64 = 32 * 1024 * 1024;
+/// `--bandwidth` stops reading this long after the request starts, keeping what it got.
+const BANDWIDTH_DEADLINE: Duration = Duration::from_secs(8);
+/// Hard stop for a stalled `--bandwidth` connection, a little after the deadline.
+const BANDWIDTH_HARD_TIMEOUT: Duration = Duration::from_secs(10);
+/// Bytes per megabyte (decimal), the unit throughput is reported in.
+const MEGABYTE: f64 = 1_000_000.0;
 
 /// One doctor report line.
 #[derive(Clone, Debug)]
@@ -61,6 +78,21 @@ pub struct HttpsProbe {
     pub server_date: Option<i64>,
     /// Failure description when not ok.
     pub error: String,
+}
+
+/// One bounded download measurement.
+#[derive(Clone, Debug)]
+pub struct BandwidthProbe {
+    /// URL that was fetched.
+    pub url: String,
+    /// Body bytes received.
+    pub bytes: u64,
+    /// Seconds spent receiving those bytes, counted from the response headers.
+    pub seconds: f64,
+    /// Whether reading stopped at the time limit before the byte cap.
+    pub timed_out: bool,
+    /// Failure description, when the download failed or no data arrived in time.
+    pub error: Option<String>,
 }
 
 /// Torch build facts.
@@ -90,6 +122,8 @@ type RunProbe = Box<dyn Fn(&[String]) -> (i32, String)>;
 type DnsProbe = Box<dyn Fn(&str) -> Option<f64>>;
 /// A distribution-version probe: version string, or None.
 type VersionProbe = Box<dyn Fn(&str) -> Option<String>>;
+/// A bandwidth probe: one bounded download.
+type BandwidthRun = Box<dyn Fn() -> BandwidthProbe>;
 
 /// What doctor reads from the machine. Tests substitute fakes for the probes.
 pub struct Host {
@@ -109,12 +143,14 @@ pub struct Host {
     pub version: VersionProbe,
     /// Current unix seconds.
     pub now: Box<dyn Fn() -> i64>,
+    /// Bounded download probe; None when `--bandwidth` was not requested.
+    pub bandwidth: Option<BandwidthRun>,
 }
 
 impl Host {
     /// The real machine, reading the trainer stack from the smoke interpreter.
     #[must_use]
-    pub fn real(root: &Path) -> Self {
+    pub fn real(root: &Path, bandwidth: bool) -> Self {
         let python = smoke_python(root);
         // ubs:ignore[rust.collections.clone-any] -- each probe closure owns its interpreter path; two clones at construction, not in a loop.
         let torch_python = python.clone();
@@ -129,21 +165,22 @@ impl Host {
             torch: Box::new(move || torch_info(&torch_python)),
             version: Box::new(move |name| dist_version(&version_python, name)),
             now: Box::new(unix_now),
+            bandwidth: bandwidth.then(|| -> BandwidthRun { Box::new(bandwidth_probe) }),
         }
     }
 }
 
-/// Run doctor and print the report.
+/// Run doctor and print the report. `bandwidth` adds one bounded download.
 ///
 /// # Errors
 ///
 /// [`OflError`] when the repo root cannot be found.
-pub fn doctor(repo: Option<&Path>) -> Result<i32> {
+pub fn doctor(repo: Option<&Path>, bandwidth: bool) -> Result<i32> {
     let root = match repo {
         Some(path) => path.to_path_buf(),
         None => find_root(None)?,
     };
-    let rows = collect(&Host::real(&root), &root);
+    let rows = collect(&Host::real(&root, bandwidth), &root);
     println!("{}", render(&rows));
     let failed: Vec<&str> =
         rows.iter().filter(|r| r.status == "FAIL").map(|r| r.name.as_str()).collect();
@@ -164,6 +201,7 @@ pub fn collect(host: &Host, repo: &Path) -> Vec<Row> {
     rows.extend(gpu_rows(host, torch_info.as_ref()));
     rows.push(disk_row(host, repo));
     rows.extend(network_rows(host));
+    rows.push(bandwidth_row(host));
     rows.push(Row {
         status: "info",
         name: "run fit".to_owned(),
@@ -417,7 +455,7 @@ fn network_rows(host: &Host) -> Vec<Row> {
             name: format!("net {name}"),
             detail: format!(
                 "DNS {:.0} ms; HTTPS round trip incl. connect, median of {}: {:.0} ms (latency \
-                 only, bandwidth not measured)",
+                 only)",
                 dns * 1000.0,
                 good.len(),
                 median * 1000.0
@@ -434,6 +472,68 @@ fn network_rows(host: &Host) -> Vec<Row> {
     }
     rows.push(clock_row(&skews, &skew_hosts));
     rows
+}
+
+/// Download throughput row, or an info row when `--bandwidth` was not requested.
+fn bandwidth_row(host: &Host) -> Row {
+    let name = "bandwidth".to_owned();
+    let Some(run) = &host.bandwidth else {
+        return Row {
+            status: "info",
+            name,
+            detail: "not measured; run `ofl doctor --bandwidth` to time one bounded download"
+                .to_owned(),
+        };
+    };
+    let probe = run();
+    let url = &probe.url;
+    if let Some(error) = &probe.error {
+        let moved =
+            if probe.bytes == 0 { String::new() } else { format!(" after {} bytes", probe.bytes) };
+        return Row {
+            status: "warn",
+            name,
+            detail: format!("download failed{moved}: {error} (source {url})"),
+        };
+    }
+    let Some(rate) = mb_per_second(probe.bytes, probe.seconds) else {
+        return Row {
+            status: "warn",
+            name,
+            detail: format!(
+                "too little to time: {} bytes in {:.3} s (source {url})",
+                probe.bytes, probe.seconds
+            ),
+        };
+    };
+    let stop = if probe.timed_out {
+        format!("stopped at the {} s time limit", BANDWIDTH_DEADLINE.as_secs())
+    } else {
+        format!("read the {} MiB range", BANDWIDTH_CAP_BYTES / (1024 * 1024))
+    };
+    Row {
+        status: "ok",
+        name,
+        detail: format!(
+            "download {rate:.1} MB/s ({:.0} Mbit/s): {} bytes in {:.1} s from {url}; {stop}; \
+             one connection, timed from the response headers; upload not measured",
+            rate * 8.0,
+            probe.bytes,
+            probe.seconds
+        ),
+    }
+}
+
+/// Decimal megabytes per second, or None when nothing was moved or no time elapsed.
+fn mb_per_second(bytes: u64, seconds: f64) -> Option<f64> {
+    if bytes == 0 || seconds <= 0.0 {
+        return None;
+    }
+    // Byte counts here are capped at 32 MiB, far below 2^52.
+    #[expect(clippy::cast_precision_loss, reason = "byte counts are far below 2^52")]
+    // ubs:ignore[rust.casts.as-casts] -- byte count to f64; capped at 32 MiB, no meaningful truncation.
+    let megabytes = bytes as f64 / MEGABYTE;
+    Some(megabytes / seconds)
 }
 
 /// Median of probe round-trips.
@@ -542,6 +642,73 @@ fn https_probe(host: &str) -> HttpsProbe {
             error: e.to_string(),
         },
     }
+}
+
+/// Whether a body-read error is a timeout. `ureq` 3 reports its own `Error::Timeout`
+/// (the global timeout) as an `io::Error` of kind `Other` wrapping the `ureq` error, so the
+/// kind alone is not enough.
+#[must_use]
+pub fn is_timeout(e: &std::io::Error) -> bool {
+    e.kind() == std::io::ErrorKind::TimedOut
+        || e.get_ref()
+            .and_then(|inner| inner.downcast_ref::<ureq::Error>())
+            .is_some_and(|err| matches!(err, ureq::Error::Timeout(_)))
+}
+
+/// One bounded download of [`BANDWIDTH_URL`]: at most [`BANDWIDTH_CAP_BYTES`] and
+/// [`BANDWIDTH_DEADLINE`] after the request starts. A stall past the deadline keeps the
+/// bytes already received; no data at all is an error.
+fn bandwidth_probe() -> BandwidthProbe {
+    let start = Instant::now();
+    let mut probe = BandwidthProbe {
+        url: BANDWIDTH_URL.to_owned(),
+        bytes: 0,
+        seconds: 0.0,
+        timed_out: false,
+        error: None,
+    };
+    let agent = ureq::Agent::config_builder()
+        .timeout_global(Some(BANDWIDTH_HARD_TIMEOUT))
+        .build()
+        .new_agent();
+    let range = format!("bytes=0-{}", BANDWIDTH_CAP_BYTES - 1);
+    let resp = match agent.get(BANDWIDTH_URL).header("Range", &range).call() {
+        Ok(resp) => resp,
+        Err(e) => {
+            probe.error = Some(e.to_string());
+            return probe;
+        }
+    };
+    // `take` bounds the read even when the server ignores Range and sends the whole file.
+    let mut reader = resp.into_body().into_reader().take(BANDWIDTH_CAP_BYTES);
+    let mut buf = vec![0_u8; 64 * 1024];
+    let body_start = Instant::now();
+    loop {
+        if start.elapsed() >= BANDWIDTH_DEADLINE {
+            probe.timed_out = true;
+            break;
+        }
+        match reader.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => probe.bytes += u64::try_from(n).unwrap_or(0),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            // Only a timeout is a time-limited measurement; any other read error (a reset,
+            // say) is a failure whatever the elapsed time, and must not read as a clean result.
+            Err(e) if is_timeout(&e) => {
+                probe.timed_out = true;
+                break;
+            }
+            Err(e) => {
+                probe.error = Some(e.to_string());
+                break;
+            }
+        }
+    }
+    probe.seconds = body_start.elapsed().as_secs_f64();
+    if probe.timed_out && probe.bytes == 0 {
+        probe.error = Some(format!("no data received within {} s", BANDWIDTH_DEADLINE.as_secs()));
+    }
+    probe
 }
 
 /// Parse an HTTP Date header to unix seconds.
