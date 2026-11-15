@@ -15,7 +15,7 @@ Short version: **single-node phase 1 contributions come first. Joining a DiLoCo 
 | `cargo run -- run0 verify`, `cargo run -- moe verify` | check the launchers against their pinned upstreams |
 | `make deploy ENV=dry-run` | list what would be published; publishing is not implemented |
 
-`ofl doctor` exit status: 0 unless a hard failure. Hard failures are Python older than 3.11, torch not importable, less than 2 GiB free next to the repo, and github.com or huggingface.co unreachable. Everything else (no GPU, CPU-only torch, low disk, clock skew over 30 s) is a warning or information. It measures round-trip latency only; **it does not measure bandwidth**, and it does not tell you which run you qualify for, because no run defines thresholds yet.
+`ofl doctor` exit status: 0 unless a hard failure. Hard failures are Python older than 3.11, torch not importable, less than 2 GiB free next to the repo, and github.com or huggingface.co unreachable. Everything else (no GPU, CPU-only torch, low disk, clock skew over 30 s) is a warning or information. By default it measures round-trip latency only. `cargo run -q -- doctor --bandwidth` (`make doctor` takes no flags) adds one bounded download and prints MB/s with the source URL and bytes moved: a 32 MiB range of a pinned Hugging Face file, stopped after 8 s, timed from the response headers over one connection. A timeout or network failure is a warning, never a hard failure. **Upload is not measured.** Doctor does not tell you which run you qualify for, because no run defines thresholds yet.
 
 ## Hardware, as the plan states it
 

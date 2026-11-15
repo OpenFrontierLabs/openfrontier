@@ -59,7 +59,11 @@ enum Command {
     /// CPU smokes: real OLMo-core trainer run, then reference `DiLoCo`.
     Smoke,
     /// GPU, CUDA, network, disk, clock and toolchain report.
-    Doctor,
+    Doctor {
+        /// Also time one bounded download and report MB/s.
+        #[arg(long)]
+        bandwidth: bool,
+    },
     /// Remove caches, build output and scratch inside the repo.
     Clean,
     /// List targets.
@@ -238,7 +242,7 @@ fn dispatch(command: Command, telemetry: &telemetry::TelemetryGuard) -> Result<i
         Command::Build => tasks::build(),
         Command::Deploy { env } => deploy::deploy(&env),
         Command::Smoke => tasks::smoke(),
-        Command::Doctor => doctor::doctor(None),
+        Command::Doctor { bandwidth } => doctor::doctor(None, bandwidth),
         Command::Clean => tasks::clean(),
         Command::Help => Ok(help()),
         Command::Fetch { name } => fetch(&name),

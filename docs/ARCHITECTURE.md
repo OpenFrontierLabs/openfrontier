@@ -23,7 +23,7 @@ How it is meant to work: contributors join; the Node app profiles their hardware
 
 Planned: NVIDIA GPUs (CUDA, PyTorch, Triton), Apple Silicon (MLX, Metal, MPS), AMD GPUs (ROCm), and CPU/test nodes, contributed through the Node app.
 
-Today: `ofl doctor` (`src/doctor.rs`) checks Python, torch, GPU (NVIDIA CUDA, AMD ROCm, and Apple MPS), free disk, clock skew and round-trip latency to github.com and huggingface.co. It does not measure bandwidth. The single-node launchers target NVIDIA only; CPU runs only the smoke tests. Nothing has been tested on Apple Silicon or ROCm.
+Today: `ofl doctor` (`src/doctor.rs`) checks Python, torch, GPU (NVIDIA CUDA, AMD ROCm, and Apple MPS), free disk, clock skew and round-trip latency to github.com and huggingface.co. Latency only by default; `ofl doctor --bandwidth` adds one bounded download throughput check (upload is not measured). The single-node launchers target NVIDIA only; CPU runs only the smoke tests. Nothing has been tested on Apple Silicon or ROCm.
 
 **Next milestones**
 - Run `make smoke` on Apple Silicon (MPS) and on a ROCm machine, and record which steps pass.
