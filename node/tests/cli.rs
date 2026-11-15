@@ -4,6 +4,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
+use std::thread;
 
 use ofl_node::envelope::SignedReport;
 use tempfile::TempDir;
@@ -172,4 +173,41 @@ fn malformed_envelope_is_a_clear_error() {
     let out = node(&dir.path().join("k"), &["verify", file.to_str().expect("utf8")]);
     assert!(!out.status.success());
     assert!(stderr(&out).contains("not a signed report envelope"), "{}", stderr(&out));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_fifo_as_key_file_is_refused_instead_of_hanging() {
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+
+    let dir = TempDir::new().expect("tempdir");
+    let key = dir.path().join("device.key");
+    let made = Command::new("mkfifo").arg(&key).status().expect("mkfifo");
+    assert!(made.success());
+    let mut child = Command::new(env!("CARGO_BIN_EXE_ofl-node"))
+        .arg("--key-file")
+        .arg(&key)
+        .arg("keygen")
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn ofl-node");
+    let start = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().expect("try_wait") {
+            break Some(status);
+        }
+        if start.elapsed() > Duration::from_secs(10) {
+            child.kill().expect("kill hung child");
+            child.wait().expect("reap");
+            break None;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    .expect("keygen on a FIFO key file hung instead of failing");
+    assert!(!status.success());
+    let mut message = String::new();
+    std::io::Read::read_to_string(&mut child.stderr.take().expect("stderr"), &mut message)
+        .expect("read");
+    assert!(message.contains("not a regular file"), "{message}");
 }
