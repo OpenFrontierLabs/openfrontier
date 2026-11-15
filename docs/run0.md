@@ -37,6 +37,8 @@ From [`configs/phase1-dense/run0.toml`](../configs/phase1-dense/run0.toml):
 | Seeds | `init_seed` 12536 (upstream default), `data_loader.seed` 0 |
 | Checkpoints | every 2000 steps, plus ephemeral every 500, into `checkpoints/run0/` |
 
+The in-training evaluators are off in this config; how a finished checkpoint is evaluated, so the swarm run can be compared like for like, is fixed in [evals-1b.md](evals-1b.md).
+
 ## Data
 
 Default: the Dolma 3 pre-tokenised mix named `OLMo-mix-0625-official` (1016 shard paths defined in OLMo-core at the pinned commit), streamed from `https://olmo-data.org`, tokenised with `allenai/dolma2-tokenizer`. Dataset ids, licences and Hugging Face revisions are in [`manifests/datasets.toml`](../manifests/datasets.toml). The cards say ODC-By 1.0; we have not audited the individual sources inside Dolma 3. The dolma2 tokenizer's card declares no licence; confirm with Ai2 before releasing weights that ship it.
