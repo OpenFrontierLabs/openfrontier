@@ -80,3 +80,12 @@ sha = "283029be10b078ac02cf334174d5620fbef8cc0f"
 license = "gist carries no licence file; read-only reference, nothing copied"
 verified = "2026-11-12"
 used-by = "phase1-moe: first_run.sbatch is the source of the flag values; tokenize_first_run.py is the tokenisation step"
+
+[lm-evaluation-harness]
+repo = "https://github.com/EleutherAI/lm-evaluation-harness"
+ref = "v0.4.13"
+sha = "ddd67220430a2470529f25fd5c05a576ca1057a0"
+license = "MIT"
+verified = "2026-11-15"
+used-by = "evals: post-training evals of Run 0 and the swarm 1B (docs/evals-1b.md); not run by ofl"
+note = "Latest release tag at verification. Default branch was d6de81643928d653435c431bae19945d41d32520 (v0.4.13-11, pyproject 0.4.14.dev0), not used."
