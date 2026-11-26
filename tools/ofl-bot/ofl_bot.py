@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Open Frontier Labs housekeeping bot. No models: GitHub API calls and string rules.
 
-One pass per run (a user systemd timer runs it every 10 minutes), idempotent:
+One pass per run (ofl-bot.timer runs it every 10 minutes inside agent-sandbox; the units and
+their install command are beside this file), idempotent:
 every comment it posts carries a hidden marker and is never posted twice.
 
 Does: path labels on PRs, welcome comment for first-time contributors, `/assign` and
