@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Open Frontier Labs bot every 10 minutes
+
+[Timer]
+OnStartupSec=2min
+OnActiveSec=1min
+OnUnitActiveSec=10min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,29 @@
+# The ofl-bot pass, started by ofl-bot.timer. Installed on the maintainer host from a checkout of this
+# repository (run from an unsandboxed shell):
+#
+#   install -m 0644 tools/ofl-bot/ofl-bot.service tools/ofl-bot/ofl-bot.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now ofl-bot.timer
+#
+# The bot runs from its own clone, ~/.ofl/bot/openfrontier (`git clone
+# git@github.com:OpenFrontierLabs/openfrontier.git ~/.ofl/bot/openfrontier`), which fast-forwards to
+# main before every pass. Agent sessions on that host can write the clone: its scripts and its
+# .git/config (a core.fsmonitor, hook, pager or filter named there runs in whatever process runs git).
+# So the pull and the bot both run inside `agent-sandbox`, the sandbox those sessions run in, never
+# directly under the user manager: whatever the clone holds runs with a session's rights only.
+# agent-sandbox exits 126 when it cannot start a sandbox; the pass then fails, with no unsandboxed
+# fallback. Inside, the network, ~/.ssh (the pull) and ~/ofl-secrets (the token) are readable and
+# ~/.ofl/bot (state.json, bot.log) is writable; the bot needs nothing else.
+[Unit]
+Description=Open Frontier Labs housekeeping bot (no models)
+
+[Service]
+Type=oneshot
+# Root-owned directories only: agent-sandbox pins its own PATH and hands this one to the command it
+# runs, so git, gh and python3 come from the system profile, never from a directory a session writes.
+Environment=PATH=/run/current-system/sw/bin:/run/wrappers/bin:/usr/bin:/bin
+# A failed pull leaves the previous checkout in place; the pass still runs.
+ExecStartPre=-%h/.local/bin/agent-sandbox -- /run/current-system/sw/bin/git -C %h/.ofl/bot/openfrontier pull --ff-only --quiet
+ExecStart=%h/.local/bin/agent-sandbox -- /run/current-system/sw/bin/python3 %h/.ofl/bot/openfrontier/tools/ofl-bot/ofl_bot.py
+TimeoutStartSec=600
+Nice=10
